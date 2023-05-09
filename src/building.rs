@@ -2,12 +2,17 @@ use std::vec;
 use strum::EnumIter;
 use crate::BuildingType::*;
 
+use strum::IntoEnumIterator;
+
+#[derive(Savefile)]
+
 pub struct Stage {
     pub num: i32,
     pub buildings: Vec<BuildingType>,
     pub title: String,
     pub description: String,
     pub enabled: bool,
+    pub unlock_at: Vec<(Resource, i32)>
 }
 
 impl Stage {
@@ -37,7 +42,6 @@ impl Stage {
                     Asphalt,
                 ],
                 5 => vec![
-                    Asphalt,
                     Bank,
                     Apartment,
                     FireStation,
@@ -47,6 +51,7 @@ impl Stage {
                 ],
                 _ => vec![],
             },
+            /// descriptions need updating
             description: match num {
                 1 => "Plop down your house, and some crops, separated by at least one land tile".to_owned(),
                 2 => "Build a warehouse and a battery.".to_owned(),
@@ -64,12 +69,20 @@ impl Stage {
                 a => format!("stage {a} has no title"),
             },
             enabled: num == 1,
+            unlock_at: match num {
+                1 => vec![],
+                2 => vec![(Resource::Seed, 50)],
+                3 => vec![(Resource::Wood, 100)],
+                4 => vec![(Resource::Storage, 200)],
+                5 => vec![(Resource::Concrete, 50)],
+                _ => Resource::iter().map(|x| (x, 999999)).collect::<Vec<(Resource, i32)>>(),
+            },
         }
     }
 }
 
 
-#[derive(PartialEq, Eq, Hash, Copy, Clone, EnumIter)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone, EnumIter, Savefile)]
 pub enum BuildingType {
     Ground,
     House,
@@ -150,7 +163,6 @@ impl BuildingType {
             Shop => vec![(Resource::Tax, 2)],
             Warehouse => vec![(Resource::Storage, 100)],
             Battery => vec![],
-            Factory => vec![(Resource::Wood, 30), (Resource::Food, 30), (Resource::Seed, 30)],
             SteelProduction => vec![(Resource::Steel, 1)],
             Bank => vec![(Resource::CashStorage, 1000)],
             BasicResearchFacility => vec![(Resource::BasicScience, 1)],
@@ -162,6 +174,7 @@ impl BuildingType {
             |FireStation
             |PoliceStation
             |Hospital
+            |Factory
              => vec![],
             FoodTruck => vec![(Resource::Tax, 25)],
             
@@ -171,7 +184,7 @@ impl BuildingType {
 
 
 
-#[derive(PartialEq, Eq, Hash, Copy, Clone, EnumIter)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone, EnumIter, Savefile)]
 pub enum Resource {
     Food,
     Tax,
@@ -219,7 +232,7 @@ impl Resource {
 
 
 
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, Savefile)]
 pub struct Building {
     pub building_type: BuildingType,
     pub required_adj: Vec<BuildingType>,
@@ -242,7 +255,6 @@ impl Building {
     pub fn new(building_type: BuildingType) -> Building {
 
         let mut required_adj = Vec::new();
-        if [House, Shop].contains(&building_type) {required_adj.push(Ground)} // must be next to the ground
         if [Battery, SteelProduction, ConcreteMixer].contains(&building_type) {required_adj.push(Factory)} // must be next to factory
         if [ConcreteMixer].contains(&building_type) {required_adj.push(Gauge)} // must be next to battery
 
@@ -320,8 +332,10 @@ impl Building {
             BasicResearchFacility => vec![(Resource::Wood, 100), (Resource::Food, 100), (Resource::Seed, 100), (Resource::Steel, 100)],
             ConcreteMixer => vec![(Resource::Steel, 100), (Resource::BasicScience, 100)],
             Gauge => vec![(Resource::Steel, 50), (Resource::BasicScience, 300)],
-            FireStation|PoliceStation|Hospital => vec![(Resource::PlaceholderResource, 1)],
-            FoodTruck => vec![(Resource::Food, 50), (Resource::Wood, 10)],
+            FireStation => vec![(Resource::Concrete, 500), (Resource::Steel, 20)],
+            Hospital => vec![(Resource::Concrete, 1000), (Resource::Food, 1500), (Resource::BasicScience, 50)],
+            PoliceStation => vec![(Resource::Concrete, 500), (Resource::Food, 500)],
+            FoodTruck => vec![(Resource::Food, 2000), (Resource::Wood, 700)],
         };
 
 

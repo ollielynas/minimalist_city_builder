@@ -1,17 +1,26 @@
-use egui::{ Frame, Color32 };
+use egui::{ Frame, Color32, Id };
 use macroquad::prelude::collections::storage;
 use std::collections::HashMap;
 
-use crate::{ building::{ Building, BuildingType, Resource } };
+use crate::{ building::{ Building, BuildingType, Resource }, EditTool };
 
 use std::time::Instant;
 
-#[derive(PartialEq, Eq, Hash, Copy, Clone)]
+
+
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Savefile)]
 pub struct Pos {
     pub x: i32,
     pub y: i32,
 }
 
+impl Default for Pos {
+    fn default() -> Self {
+        Pos { x: 0, y: 0 }
+    }
+}
+
+#[derive(Savefile)]
 
 pub struct Tile {
     pub pos: Pos,
@@ -55,7 +64,6 @@ impl Tile {
     }
 
     fn update_count(&mut self) {
-        println!("update_count");
         self.buildings.clear();
         for i in &self.land {
             for j in i {
@@ -121,38 +129,69 @@ impl Tile {
     ) -> bool {
         let mut changed = false;
         let mut set_buildings: Vec<Pos> = vec![];
+    
+        let area = egui::Area::new(Id::new(self.pos.to_string()))
+        
+        .fixed_pos(egui::Pos2::new(offset.0 + self.pos.x as f32 *300.0, offset.1 + self.pos.y as f32*280.0))
+        .order(egui::Order::Background)
+        
+        .show(egui_ctx, |ui|{
+            ui.style_mut().spacing.item_spacing = egui::Vec2::new(0.0, 0.0);
 
-        egui::Window
-            ::new(self.pos.to_string())
-            .title_bar(false)
-            .resizable(false)
-            .auto_sized()
-            .collapsible(false)
-            .constrain(false)
-            .fixed_pos(egui::Pos2::new(offset.0 + self.pos.x as f32 *300.0, offset.1 + self.pos.y as f32*280.0))
-            .frame(
-                Frame::none()
-                    .fill(egui::Color32::from_rgb(215, 235, 210))
-                    .inner_margin(3.0)
-                    .rounding(6.0)
-            )
-
-            .resizable(false)
-            .collapsible(false)
-
-            .show(egui_ctx, |ui| {
-                let hover = egui_ctx.is_pointer_over_area();
+            // let hover = ui.ui_contains_pointer();
+            // println!("hover {hover}");
+            ui.group(|ui| {
                 for i in 0..8 {
+                    
                     ui.horizontal(|ui| {
                         for j in 0..8 {
+                            let mut text = &self.land[i][j].symbol.to_owned();
+                            
                             let square = egui::Button
                                 ::new(&self.land[i][j].symbol)
-                                .fill(Color32::TRANSPARENT)
-                                // .frame(false)
+                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(215, 235, 210)))
+                                .fill(egui::Color32::from_rgb(215, 235, 210))
                                 .small()
+                                
                                 .min_size(egui::Vec2::new(25.0, 25.0))
                                 .sense(egui::Sense::click_and_drag());
                             let response = ui.add(square);
+                            
+                            let text = match &input_settings.edit_tool {
+                                        EditTool::Build(b) => {
+                                            let mut too_expensive=false;
+                                            for i in self.land[i][j].cost.iter() {
+                                                if let Some(x) = resources.get(&i.0) {
+                                                    if *x < i.1 {
+                                                        too_expensive=true;
+                                                    }
+                                                } else {
+                                                    too_expensive=true;
+                                                }
+                                            }
+                                            if self.is_valid(Pos { x: i as i32, y: j as i32 }, b.clone()) 
+                                            && !too_expensive
+                                            && self.land[i][j].building_type == BuildingType::Ground
+                                            {
+                                                
+                                                egui::RichText::new(&b.symbol).to_owned()
+                                            } else {
+                                                egui::RichText::new("").to_owned()
+                                            }
+                                            // egui::RichText::new(&b.symbol).to_owned()
+                                        }.italics(),
+                                        EditTool::Remove => {
+                                            match text.len() {
+                                                2 => egui::RichText::new("").to_owned(),
+                                                _ => egui::RichText::new(egui_phosphor::X.to_owned()).color(egui::Color32::from_rgb(255, 0, 0)).to_owned()
+                                            }
+                                        }
+                                    };
+                            if response.hovered() || ui.input(|r| r.key_down(egui::Key::Q)) {
+                                ui.put(response.rect , egui::Label::new(
+                                    text
+                                ));
+                            }
 
                             match input_settings.select_tool {
                                 crate::SelectTool::Click => {
@@ -171,8 +210,62 @@ impl Tile {
                         }
                     });
                 }
-                
-            });
+                });
+        });
+
+
+        // egui::Window
+        //     ::new(self.pos.to_string())
+        //     .title_bar(false)
+        //     .resizable(false)
+        //     .auto_sized()
+        //     .collapsible(false)
+        //     .constrain(false)
+        //     .fixed_pos(egui::Pos2::new(offset.0 + self.pos.x as f32 *300.0, offset.1 + self.pos.y as f32*280.0))
+        //     .frame(
+        //         Frame::none()
+        //             .fill(egui::Color32::from_rgb(215, 235, 210))
+        //             .inner_margin(3.0)
+        //             .rounding(6.0)
+        //     )
+
+        //     .resizable(false)
+        //     .collapsible(false)
+
+        //     .show(egui_ctx, |ui| {
+                // ui.with_layer_id(egui::LayerId::new(egui::Order::Middle, ui.id()), |ui| {
+                // let hover = egui_ctx.is_pointer_over_area();
+                // for i in 0..8 {
+                //     ui.horizontal(|ui| {
+                //         for j in 0..8 {
+                //             let square = egui::Button
+                //                 ::new(&self.land[i][j].symbol)
+                //                 .fill(Color32::TRANSPARENT)
+                //                 // .frame(false)
+                //                 .small()
+                //                 .min_size(egui::Vec2::new(25.0, 25.0))
+                //                 .sense(egui::Sense::click_and_drag());
+                //             let response = ui.add(square);
+
+                //             match input_settings.select_tool {
+                //                 crate::SelectTool::Click => {
+                //                     if response.clicked() {
+                //                         set_buildings.push(Pos { x: i as i32, y: j as i32 });
+                //                     }
+                //                 }
+                //                 crate::SelectTool::Rect => {
+                //                     // if response.clicked() {
+                //                     //     self.land[i][j].building_type = input_settings.edit_tool.get_building();
+                //                     //     changed = true;
+                //                     //     set_buildings.push(Pos{x: i as i32, y: j as i32});
+                //                     // }
+                //                 }
+                //             }
+                //         }
+                //     });
+                // }
+            // });
+            // });
 
         for i in set_buildings {
             let mut break_building = false;

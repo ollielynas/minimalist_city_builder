@@ -10,5 +10,7 @@ egui = "0.21.0"
 egui-macroquad = "0.15.0"
 egui-phosphor = "0.1.0"
 macroquad = "0.3.25"
+savefile = "0.13.0"
+savefile-derive = "0.13.0"
 strum = { version = "0.24.1", features = ["derive"] }
 strum_macros = "0.24.3"
