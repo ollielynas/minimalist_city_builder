@@ -132,7 +132,7 @@ impl Tile {
     
         let area = egui::Area::new(Id::new(self.pos.to_string()))
         
-        .fixed_pos(egui::Pos2::new(offset.0 + self.pos.x as f32 *300.0, offset.1 + self.pos.y as f32*280.0))
+        .fixed_pos(egui::Pos2::new(offset.0 + self.pos.x as f32 *202.0, offset.1 + self.pos.y as f32*202.0))
         .order(egui::Order::Background)
         
         .show(egui_ctx, |ui|{
@@ -140,7 +140,7 @@ impl Tile {
 
             // let hover = ui.ui_contains_pointer();
             // println!("hover {hover}");
-            ui.group(|ui| {
+            // ui.group(|ui| {
                 for i in 0..8 {
                     
                     ui.horizontal(|ui| {
@@ -210,7 +210,7 @@ impl Tile {
                         }
                     });
                 }
-                });
+                // });
         });
 
 

@@ -53,7 +53,7 @@ impl Pos {
     }
 
     fn cost(&self) -> i32 {
-        (self.x.abs() + self.y.abs() + 1).pow(3) * 100
+        (self.x.abs().max(self.y.abs())+1).pow(3) * 100
     }
 }
 
