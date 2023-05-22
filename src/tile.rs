@@ -1,12 +1,13 @@
-use egui::{ Frame, Color32, Id };
+use egui::{Color32, Frame, Id};
 use macroquad::prelude::collections::storage;
 use std::collections::HashMap;
 
-use crate::{ building::{ Building, BuildingType, Resource }, EditTool };
+use crate::{
+    building::{Building, BuildingType, Resource},
+    EditTool, SelectTool,
+};
 
 use std::time::Instant;
-
-
 
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Savefile)]
 pub struct Pos {
@@ -20,6 +21,8 @@ impl Default for Pos {
     }
 }
 
+
+
 #[derive(Savefile)]
 
 pub struct Tile {
@@ -27,12 +30,16 @@ pub struct Tile {
     pub land: [[Building; 8]; 8],
     pub buildings: HashMap<BuildingType, i32>,
     pub neighbors_buildings: HashMap<BuildingType, i32>,
+
+    #[savefile_versions = "3.."]
+    pub planned: HashMap<Pos, BuildingType>,
 }
 
 impl Tile {
     pub fn new(coord: Pos) -> Tile {
         let land: [[Building; 8]; 8] = Default::default();
         Tile {
+            planned: HashMap::new(),
             pos: coord,
             land,
             buildings: HashMap::new(),
@@ -40,7 +47,7 @@ impl Tile {
         }
     }
 
-    pub fn process_storage(&self,  mut storage: i32,  mut cash_storage: i32) -> (i32,i32) {
+    pub fn process_storage(&self, mut storage: i32, mut cash_storage: i32) -> (i32, i32) {
         for i in &self.buildings {
             for n in i.0.output() {
                 match n.0 {
@@ -50,63 +57,83 @@ impl Tile {
                 }
             }
         }
-        return (storage, cash_storage)
+        return (storage, cash_storage);
     }
 
-    pub fn processes_resources(&self, res: &mut HashMap<Resource, i32>, storage: i32, cash_storage: i32) {
-        
-        
+    pub fn processes_resources(
+        &self,
+        res: &mut HashMap<Resource, i32>,
+        storage: i32,
+        cash_storage: i32,
+    ) {
         for i in &self.buildings {
             for n in i.0.output() {
-                res.insert(n.0, (res.get(&n.0).unwrap_or(&0) + n.1 * i.1).min(match n.0 {Resource::CashStorage => cash_storage+storage, Resource::Storage => storage, _ => storage}));
-            }
-        }
-    }
-
-    fn update_count(&mut self) {
-        self.buildings.clear();
-        for i in &self.land {
-            for j in i {
-                self.buildings.insert(
-                    j.building_type,
-                    self.buildings.get(&j.building_type).unwrap_or(&0) + 1
+                res.insert(
+                    n.0,
+                    (res.get(&n.0).unwrap_or(&0) + n.1 * i.1).min(match n.0 {
+                        Resource::CashStorage => cash_storage + storage,
+                        Resource::Storage => storage,
+                        _ => storage,
+                    }),
                 );
             }
         }
     }
 
-    pub fn is_valid(&self, i:Pos, new_building:Building) -> bool {
-        let mut break_building=false;
-        for requirement in &new_building.tile_adj {
-                if let Some(_) = self.neighbors_buildings.get(requirement) {
-                } else {
-                    break_building=true;
+    fn update_count(&mut self, resources: &mut HashMap<Resource, i32>) {
+        self.buildings.clear();
+        for i in self.land.iter() {
+            for j in i.iter() {
+                
+                self.buildings.insert(
+                    j.building_type,
+                    self.buildings.get(&j.building_type).unwrap_or(&0) + 1,
+                );
+            }
+        }
+
+        for x in 0..8 {
+            for y in 0..8 {
+                if !self.is_valid(Pos::new(x as i32, y as i32), &self.land[x][y]) {
+
+                    self.planned.insert(Pos::new(x as i32, y as i32), self.land[x][y].building_type);
+                    for c in &self.land[x][y].cost {
+                        resources.insert(c.0, resources.get(&c.0).unwrap_or(&0) + c.1);
+                    }
+                    self.land[x][y] = Building::new(BuildingType::Ground);
                 }
             }
-            let adj = i
-                .get_adjacent()[0..4]
-                .iter()
-                .filter(|x| x.x < 8 && x.x >= 0 && x.y < 8 && x.y >= 0)
-                .map(|x| self.land[x.x as usize][x.y as usize].building_type)
-                .collect::<Vec<BuildingType>>();
+        }
 
-            if !new_building.required_adj.iter().all(|x| adj.contains(x)) {
-                break_building=true;
-            }
-            if
-                !adj
-                    .iter()
-                    .all(
-                        |x|
-                            new_building.required_adj.contains(x) ||
-                            new_building.optional_adj.contains(x)
-                    )
-            {
-                break_building=true;
-            }
+        
+    }
 
-            
-        return !break_building
+    pub fn is_valid(&self, i: Pos, new_building: &Building) -> bool {
+        if new_building.building_type == BuildingType::Ground {
+            return true;
+        }
+        for requirement in &new_building.tile_adj {
+            if let Some(_) = self.buildings.get(requirement) {
+            } else {
+                return false;
+            }
+        }
+        let adj = i.get_adjacent()[0..4]
+            .iter()
+            .filter(|x| x.x < 8 && x.x >= 0 && x.y < 8 && x.y >= 0)
+            .map(|x| self.land[x.x as usize][x.y as usize].building_type)
+            .collect::<Vec<BuildingType>>();
+
+        if !new_building.required_adj.iter().all(|x| adj.contains(x)) {
+            return false;
+        }
+        if !adj
+            .iter()
+            .all(|x| new_building.required_adj.contains(x) || new_building.optional_adj.contains(x))
+        {
+            return false;
+        }
+        return true;
     }
 
     pub fn to_string(&self) -> String {
@@ -125,196 +152,181 @@ impl Tile {
         egui_ctx: &egui::Context,
         input_settings: &crate::InputSettings,
         offset: (f32, f32),
-        resources: &mut HashMap<Resource, i32>
+        resources: &mut HashMap<Resource, i32>,
+        enabled: bool,
     ) -> bool {
         let mut changed = false;
-        let mut set_buildings: Vec<Pos> = vec![];
-    
-        let area = egui::Area::new(Id::new(self.pos.to_string()))
-        
-        .fixed_pos(egui::Pos2::new(offset.0 + self.pos.x as f32 *202.0, offset.1 + self.pos.y as f32*202.0))
-        .order(egui::Order::Background)
-        
-        .show(egui_ctx, |ui|{
-            ui.style_mut().spacing.item_spacing = egui::Vec2::new(0.0, 0.0);
+        let mut set_buildings: Vec<(Pos, Building)> = vec![];
 
-            // let hover = ui.ui_contains_pointer();
-            // println!("hover {hover}");
-            // ui.group(|ui| {
+        egui::Area::new(Id::new(self.pos.to_string()))
+            .fixed_pos(egui::Pos2::new(
+                offset.0 + self.pos.x as f32 * 202.0,
+                offset.1 + self.pos.y as f32 * 202.0,
+            ))
+            .order(egui::Order::Background)
+            .show(egui_ctx, |ui| {
+                ui.style_mut().spacing.item_spacing = egui::Vec2::new(0.0, 0.0);
+
                 for i in 0..8 {
-                    
                     ui.horizontal(|ui| {
                         for j in 0..8 {
-                            let mut text = &self.land[i][j].symbol.to_owned();
-                            
-                            let square = egui::Button
-                                ::new(&self.land[i][j].symbol)
-                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(215, 235, 210)))
-                                .fill(egui::Color32::from_rgb(215, 235, 210))
+                            let text = &self.land[i][j].symbol.to_owned();
+
+                            let square = egui::Button::new(&self.land[i][j].symbol)
+                                .stroke(egui::Stroke::new(
+                                    1.0,
+                                    egui::Color32::from_rgb(200, 235, 200),
+                                ))
+                                .fill(
+                                    
+                                    match self.is_valid(Pos::new(i as i32, j as i32), &self.land[i][j]) {
+                                        true => egui::Color32::from_rgb(215, 235, 210),
+                                        false => egui::Color32::from_rgb(235, 215, 210),
+                                    })
+                                    
+                                    // egui::Color32::from_rgb(215, 235, 210))
                                 .small()
-                                
                                 .min_size(egui::Vec2::new(25.0, 25.0))
                                 .sense(egui::Sense::click_and_drag());
-                            let response = ui.add(square);
-                            
+                            let response = ui.add_enabled(
+                                !(enabled
+                                    && ui.rect_contains_pointer(
+                                        egui::Rect::from_two_pos(
+                                            egui::Pos2::new(
+                                                offset.0 + self.pos.x as f32 * 202.0,
+                                                offset.1 + self.pos.y as f32 * 202.0,
+                                            ),
+                                            egui::Pos2::new(
+                                                offset.0 + (self.pos.x + 1) as f32 * 202.0,
+                                                offset.1 + (self.pos.y + 1) as f32 * 202.0,
+                                            ),
+                                        )
+                                        .intersect(ui.cursor()),
+                                    )),
+                                square,
+                            );
+
                             let text = match &input_settings.edit_tool {
-                                        EditTool::Build(b) => {
-                                            let mut too_expensive=false;
-                                            for i in self.land[i][j].cost.iter() {
-                                                if let Some(x) = resources.get(&i.0) {
-                                                    if *x < i.1 {
-                                                        too_expensive=true;
-                                                    }
-                                                } else {
-                                                    too_expensive=true;
-                                                }
-                                            }
-                                            if self.is_valid(Pos { x: i as i32, y: j as i32 }, b.clone()) 
-                                            && !too_expensive
-                                            && self.land[i][j].building_type == BuildingType::Ground
-                                            {
-                                                
-                                                egui::RichText::new(&b.symbol).to_owned()
-                                            } else {
-                                                egui::RichText::new("").to_owned()
-                                            }
-                                            // egui::RichText::new(&b.symbol).to_owned()
-                                        }.italics(),
-                                        EditTool::Remove => {
-                                            match text.len() {
-                                                2 => egui::RichText::new("").to_owned(),
-                                                _ => egui::RichText::new(egui_phosphor::X.to_owned()).color(egui::Color32::from_rgb(255, 0, 0)).to_owned()
-                                            }
-                                        }
-                                    };
+                                EditTool::Build(b) => {
+                                    if self.is_valid(
+                                        Pos {
+                                            x: i as i32,
+                                            y: j as i32,
+                                        },
+                                        b,
+                                    ) && self.land[i][j].building_type == BuildingType::Ground
+                                    {
+                                        egui::RichText::new(&b.symbol).to_owned()
+                                    } else {
+                                        egui::RichText::new("").to_owned()
+                                    }
+                                }
+                                .italics(),
+                                EditTool::Remove => match text.len() {
+                                    2 => egui::RichText::new("").to_owned(),
+                                    _ => egui::RichText::new(egui_phosphor::X.to_owned())
+                                        .color(egui::Color32::from_rgb(255, 0, 0))
+                                        .to_owned(),
+                                },
+                            };
                             if response.hovered() || ui.input(|r| r.key_down(egui::Key::Q)) {
-                                ui.put(response.rect , egui::Label::new(
-                                    text
+                                ui.put(response.rect, egui::Label::new(text));
+                            }
+                            if let Some(b) = self.planned.get(&Pos {
+                                x: i as i32,
+                                y: j as i32,
+                            }) {
+                                ui.put(
+                                    response.rect,
+                                    egui::Label::new(
+                                        egui::RichText::new(&b.symbol()).weak().to_owned(),
+                                    ),
+                                );
+
+                                set_buildings.push((
+                                    Pos {
+                                        x: i as i32,
+                                        y: j as i32,
+                                    },
+                                    Building::new(b.clone()),
                                 ));
                             }
 
-                            match input_settings.select_tool {
-                                crate::SelectTool::Click => {
-                                    if response.clicked() {
-                                        set_buildings.push(Pos { x: i as i32, y: j as i32 });
-                                    }
+                            if response.clicked() {
+                                if input_settings.select_tool == SelectTool::Plan {
+                                    self.planned.insert(
+                                        Pos {
+                                            x: i as i32,
+                                            y: j as i32,
+                                        },
+                                        match &input_settings.edit_tool {
+                                            crate::EditTool::Build(b) => b.building_type.clone(),
+                                            crate::EditTool::Remove => BuildingType::Ground,
+                                        },
+                                    );
                                 }
-                                crate::SelectTool::Rect => {
-                                    // if response.clicked() {
-                                    //     self.land[i][j].building_type = input_settings.edit_tool.get_building();
-                                    //     changed = true;
-                                    //     set_buildings.push(Pos{x: i as i32, y: j as i32});
-                                    // }
-                                }
+                                set_buildings.push((
+                                    Pos {
+                                        x: i as i32,
+                                        y: j as i32,
+                                    },
+                                    match &input_settings.edit_tool {
+                                        crate::EditTool::Build(b) => b.clone(),
+                                        crate::EditTool::Remove => {
+                                            Building::new(BuildingType::Ground)
+                                        }
+                                    },
+                                ));
                             }
                         }
                     });
                 }
                 // });
-        });
+            });
 
-
-        // egui::Window
-        //     ::new(self.pos.to_string())
-        //     .title_bar(false)
-        //     .resizable(false)
-        //     .auto_sized()
-        //     .collapsible(false)
-        //     .constrain(false)
-        //     .fixed_pos(egui::Pos2::new(offset.0 + self.pos.x as f32 *300.0, offset.1 + self.pos.y as f32*280.0))
-        //     .frame(
-        //         Frame::none()
-        //             .fill(egui::Color32::from_rgb(215, 235, 210))
-        //             .inner_margin(3.0)
-        //             .rounding(6.0)
-        //     )
-
-        //     .resizable(false)
-        //     .collapsible(false)
-
-        //     .show(egui_ctx, |ui| {
-                // ui.with_layer_id(egui::LayerId::new(egui::Order::Middle, ui.id()), |ui| {
-                // let hover = egui_ctx.is_pointer_over_area();
-                // for i in 0..8 {
-                //     ui.horizontal(|ui| {
-                //         for j in 0..8 {
-                //             let square = egui::Button
-                //                 ::new(&self.land[i][j].symbol)
-                //                 .fill(Color32::TRANSPARENT)
-                //                 // .frame(false)
-                //                 .small()
-                //                 .min_size(egui::Vec2::new(25.0, 25.0))
-                //                 .sense(egui::Sense::click_and_drag());
-                //             let response = ui.add(square);
-
-                //             match input_settings.select_tool {
-                //                 crate::SelectTool::Click => {
-                //                     if response.clicked() {
-                //                         set_buildings.push(Pos { x: i as i32, y: j as i32 });
-                //                     }
-                //                 }
-                //                 crate::SelectTool::Rect => {
-                //                     // if response.clicked() {
-                //                     //     self.land[i][j].building_type = input_settings.edit_tool.get_building();
-                //                     //     changed = true;
-                //                     //     set_buildings.push(Pos{x: i as i32, y: j as i32});
-                //                     // }
-                //                 }
-                //             }
-                //         }
-                //     });
-                // }
-            // });
-            // });
-
-        for i in set_buildings {
+        for (i, new_building) in set_buildings {
             let mut break_building = false;
 
-            
             let ground = Building::new(BuildingType::Ground);
-            let new_building = match &input_settings.edit_tool {
-                crate::EditTool::Build(b) => b,
-                crate::EditTool::Remove => &ground,
-            };
+
             let current = &self.land[i.x as usize][i.y as usize];
             if current.building_type == new_building.building_type {
+                self.planned.remove(&i);
                 continue;
             }
 
             if new_building.building_type == BuildingType::Ground {
-
                 for i in Building::new(current.building_type).cost {
                     let storage = resources.get(&Resource::Storage).unwrap_or(&100);
-                    resources.insert(i.0, (resources.get(&i.0).unwrap_or(&0) + (i.1 as f32 * 0.75).round() as i32).min(*storage));
+                    resources.insert(i.0, (resources.get(&i.0).unwrap_or(&0) + i.1).min(*storage));
                 }
 
                 self.land[i.x as usize][i.y as usize] = ground;
-                self.update_count();
+                self.update_count(resources);
                 changed = true;
-                continue;
-            } 
-
-            
-            if self.is_valid(i, new_building.clone()) {
-            }else {
                 continue;
             }
 
-
+            if !self.is_valid(i, &new_building) {
+                continue;
+            }
 
             for i in new_building.cost.iter() {
                 if let Some(x) = resources.get(&i.0) {
                     if *x < i.1 {
-                        break_building=true;
+                        break_building = true;
                     }
                 } else {
-                    break_building=true;
+                    break_building = true;
                 }
             }
-            
+
             if break_building {
                 continue;
             }
+
+
+            self.planned.remove(&i);
 
             for i in new_building.cost.iter() {
                 if let Some(x) = resources.get_mut(&i.0) {
@@ -326,9 +338,8 @@ impl Tile {
             changed = true;
         }
         if changed {
-            self.update_count();
+            self.update_count(resources);
         }
-
 
         return changed;
     }

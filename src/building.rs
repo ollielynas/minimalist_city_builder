@@ -269,11 +269,15 @@ impl Building {
         let city_tiles = [Bank, FireStation, PoliceStation, Hospital, Apartment, FoodTruck];
 
         let mut optional_adj = Vec::new();
-        if ![BasicResearchFacility].contains(&building_type) && !city_tiles.contains(&building_type) {optional_adj.push(Ground)} // cannot be next to ground
+        if ![BasicResearchFacility].contains(&building_type)  {optional_adj.push(Ground)} // cannot be next to ground
 
         if ![].contains(&building_type) {optional_adj.push(building_type)} // cannot be next to self
 
-        for i in [(Warehouse, Shop), (Battery, Factory)] {
+        for i in [
+            (Warehouse, Shop),
+            (Battery, Factory),
+            (SteelProduction, Factory),
+            ] {
             if i.0 == building_type {optional_adj.push(i.1)}
             if i.1 == building_type {optional_adj.push(i.0)}
         }
@@ -284,6 +288,9 @@ impl Building {
                 optional_adj.push(*i)
             }
             required_adj.push(Asphalt)
+        }
+        if building_type == BuildingType::Asphalt {
+            optional_adj.append(city_tiles.to_vec().as_mut())
         }
 
         let production_city_tiles = [Bank, FoodTruck];
@@ -314,7 +321,6 @@ impl Building {
 
         if production_city_tiles.contains(&building_type) {
             tile_adj.push(Apartment)
-
         }
 
         let cost = match building_type {

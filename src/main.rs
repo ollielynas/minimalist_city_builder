@@ -4,6 +4,8 @@ use std::{
     time::Instant,
 };
 
+const GLOBAL_VERSION: u32 = 4;
+
 use egui::{
     self, epaint::Shadow, Align2, Button, Frame, Id, LayerId, Pos2, Sense, TextStyle, Vec2,
 };
@@ -30,11 +32,8 @@ impl Pos {
     fn to_string(&self) -> String {
         format!("({},{})", self.x, self.y)
     }
-    fn new<T: Into<i32>>(x: T, y: T) -> Pos {
-        Pos {
-            x: x.into(),
-            y: y.into(),
-        }
+    pub fn new<T: Into<i32>>(x:T, y:T) -> Pos {
+        Pos { x: x.into(), y: y.into() }
     }
     fn added(&self, other: Pos) -> Pos {
         Pos {
@@ -53,21 +52,21 @@ impl Pos {
     }
 
     fn cost(&self) -> i32 {
-        (self.x.abs().max(self.y.abs())+1).pow(3) * 100
+        (self.x.abs().max(self.y.abs()) + 1).pow(3) * 100
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Copy, Clone, EnumIter,)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone, EnumIter)]
 pub enum SelectTool {
-    Click,
-    Rect,
+    Add,
+    Plan,
 }
 
 impl SelectTool {
     fn icon(&self) -> String {
         (match self {
-            SelectTool::Click => egui_phosphor::CURSOR_CLICK,
-            SelectTool::Rect => egui_phosphor::SELECTION_PLUS,
+            SelectTool::Add => egui_phosphor::CURSOR_CLICK,
+            SelectTool::Plan => egui_phosphor::CIRCLE_DASHED,
         })
         .to_owned()
     }
@@ -97,43 +96,36 @@ pub struct InputSettings {
 impl Default for InputSettings {
     fn default() -> Self {
         InputSettings {
-            select_tool: SelectTool::Click,
+            select_tool: SelectTool::Add,
             edit_tool: EditTool::Build(Building::new(BuildingType::House)),
         }
     }
 }
 
-#[derive(Clone)]
-enum Intent {
-    Nothing,
-    Move,
-    CanAdd(BuildingType),
-    CannotAddLackingResources(BuildingType, Vec<(Resource, i32)>),
-    CannotAddLackingRequirement(BuildingType, Vec<BuildingType>, Vec<BuildingType>),
-}
 
-impl Default for Intent {
-    fn default() -> Self {
-        Intent::Nothing
-    }
-}
 
 fn no_rect() -> egui::Rect {
     egui::Rect::from_min_size(egui::Pos2::new(0.0, 0.0), egui::Vec2::new(0.0, 0.0))
 }
-fn default_float_tuple() -> (f32,f32) {(100.0,100.0)}
-
-
+fn default_float_tuple() -> (f32, f32) {
+    (100.0, 100.0)
+}
 
 #[derive(Savefile)]
 pub struct Data {
+    #[savefile_default_val = "Old World"]
+    #[savefile_versions = "2.."]
+    pub name: String,
+
+
+
     pub tiles: HashMap<Pos, Tile>,
 
     #[savefile_introspect_ignore]
     #[savefile_ignore]
     pub input_settings: InputSettings,
 
-    #[savefile_default_fn="default_float_tuple"]
+    #[savefile_default_fn = "default_float_tuple"]
     #[savefile_introspect_ignore]
     #[savefile_ignore]
     pub screen_offset: (f32, f32),
@@ -144,32 +136,37 @@ pub struct Data {
     ui_scale: f32,
     game_scale: f32,
 
-    #[savefile_introspect_ignore]
-    #[savefile_ignore]
-    intent: Intent,
+
 
     #[savefile_introspect_ignore]
-    #[savefile_default_fn="no_rect"]
+    #[savefile_default_fn = "no_rect"]
     #[savefile_ignore]
     switch_tool_rect: egui::Rect,
 
     #[savefile_introspect_ignore]
-    #[savefile_default_fn="no_rect"]
+    #[savefile_default_fn = "no_rect"]
     #[savefile_ignore]
     select_building_rect: egui::Rect,
 
-    #[savefile_default_val="false"]
+    #[savefile_default_val = "false"]
     #[savefile_ignore]
     popup: bool,
 
-    #[savefile_default_val="false"]
+    #[savefile_default_val = "false"]
     #[savefile_ignore]
     popup_hover: bool,
+
+    #[savefile_default_val = "false"]
+    #[savefile_versions = "4.."]
+    quick_menu: bool,
+
 }
 
 impl Data {
-    fn new() -> Data {
+    fn new(name: String) -> Data {
         let mut d = Data {
+            name,
+            quick_menu: false,
             switch_tool_rect: egui::Rect::from_min_size(
                 egui::Pos2::new(0.0, 0.0),
                 egui::Vec2::new(0.0, 0.0),
@@ -183,10 +180,10 @@ impl Data {
             new_pos: vec![Pos::new(0, 0)],
             tiles: HashMap::new(),
             input_settings: InputSettings {
-                select_tool: SelectTool::Click,
+                select_tool: SelectTool::Add,
                 edit_tool: EditTool::Build(Building::new(BuildingType::House)),
             },
-            screen_offset: (0.0, 0.0),
+            screen_offset: (100.0, 100.0),
             resources: HashMap::new(),
             stage: [
                 Stage::new(1),
@@ -195,7 +192,6 @@ impl Data {
                 Stage::new(4),
                 Stage::new(5),
             ],
-            intent: Intent::Nothing,
             popup: false,
             popup_hover: false,
         };
@@ -235,7 +231,7 @@ impl Data {
                 }
             }
         }
-
+        
         if let Some(mut b) = self.tiles.get_mut(&pos[4]) {
             b.neighbors_buildings = new_hash;
         }
@@ -263,6 +259,7 @@ impl Data {
                     &self.input_settings,
                     self.screen_offset,
                     &mut self.resources,
+                    self.popup_hover,
                 ) {
                     update_adjacent = Some(*i.0);
                 }
@@ -321,22 +318,28 @@ impl Data {
         }
 
         if let Some(pos) = update_adjacent {
-            for i in pos.get_adjacent() {
-                self.add_buildings(i.get_adjacent());
-            }
+                self.add_buildings(pos.get_adjacent());
         }
     }
 }
 
-fn no_icon(_ui: &mut egui::Ui, _openness: f32, _response: &egui::Response) {}
-
 #[macroquad::main("egui with macroquad")]
 async fn main() {
-    let mut data = match savefile::load_file("game_instance.bin", 1) {
-        Ok(d) => d,
-        Err(e) => {println!("{:#?}", e);Data::new()}
+    let mut data = Data::new("".to_owned());
+    let mut menu = true;
+    match savefile::load_file::<Data, &str>("game_instance.bin", GLOBAL_VERSION) {
+        Ok(d) => {
+
+            // create new folder called game files and then move the file "game_instance.bin" into it
+            println!("{:?}",std::fs::create_dir("saves"));
+            savefile::save_file("saves/game_instanceOld World.bin", GLOBAL_VERSION, &d).unwrap();
+        }
+        Err(e) => {
+            println!("{e}")
+        }
     };
     let mut og_ppp = 0.0;
+    println!("Test 3");
 
     egui_macroquad::ui(|egui_ctx| {
         og_ppp = egui_ctx.pixels_per_point();
@@ -355,9 +358,67 @@ async fn main() {
     let mut process = Instant::now();
     loop {
         clear_background(WHITE);
+        let mut hover_text: Option<String> = None;
+        if menu {
+            egui_macroquad::ui(|egui_ctx| {
+
+                egui::SidePanel::right("Right side").show(egui_ctx, |ui| {
+                    if let Ok(files) = std::fs::read_dir("saves/") {
+                        ui.heading("Saved Games");
+                        
+                        ui.separator();
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                        for f in files {
+                            let f = match f {Ok(f) => f, _ => {continue;}};
+                            if f.file_type().unwrap().is_file() {
+                                
+                                ui.add(egui::widgets::Button::new(f.file_name().to_str().unwrap()))
+                                    .clicked()
+                                    .then(|| {
+                                        if let Ok(load) = savefile::load_file::<Data, &str>(
+                                            &format!("saves/{}", f.file_name().to_str().unwrap()),GLOBAL_VERSION) {
+                                            data = load;
+                                            menu = false;
+                                        }
+                                        
+                                    });
+                                }
+                            }
+                        });
+                    }else {
+                        ui.label("Error loading files");
+                    }
+                });
+
+                egui::CentralPanel::default().show(egui_ctx, |ui| {
+                    ui.heading("Welcome to the game!");
+                    
+                    ui.horizontal(|ui| {
+                        ui.add(egui::widgets::TextEdit::singleline(&mut data.name)
+                            .hint_text("New Game Name")
+                            .cursor_at_end(true)
+                            
+                        );
+                            
+                        
+                        if data.name != "".to_owned() && ui.add(egui::widgets::Button::new("New Game"))
+                            .clicked()
+                             {
+                                menu = false;
+                            }
+                        
+                        
+                    });
+                });
+            });
+            egui_macroquad::draw();
+
+            next_frame().await;
+            continue;
+        }
 
         if process.elapsed().as_secs() >= 3 {
-            savefile::save_file("game_instance.bin", 1, &data);
+            let filename = format!("saves/game_instance_{}.bin", data.name);
             process = Instant::now();
             let mut storage = 100;
             let mut cash_storage = 0;
@@ -378,38 +439,58 @@ async fn main() {
                     }
                 }
             }
+            match savefile::save_file(&filename, GLOBAL_VERSION, &data) {
+                Ok(_) => {}
+                Err(e) => {
+                    println!("{:?}", e);
+                }
+            }
         }
 
         egui_macroquad::ui(|egui_ctx| {
-
-
-
-
             let mut unlock = -1;
 
             data.render(egui_ctx);
 
-
             let window_id = Id::new("popup selector");
-            let mut popup_layer_id =
-                egui::LayerId::new(egui::Order::Foreground, window_id);
+            let mut popup_layer_id = egui::LayerId::new(egui::Order::Foreground, window_id);
             if data.popup {
-                egui::Window::new(format!("Build: {}", &data.input_settings.edit_tool.icon()))
+                match egui::Window::new(format!("Build: {}", &data.input_settings.edit_tool.icon()))
                     .collapsible(true)
                     .id(window_id)
                     .open(&mut data.popup)
                     .scroll2([false, true])
                     .show(egui_ctx, |ui| {
                         // egui_ctx.move_to_top(ui.layer_id());
-                        
 
-                        let vert = ui
+                        ui
                             .vertical(|ui| {
-                                ui.group(|ui| {
+                                ui.checkbox(&mut data.quick_menu, "Quick Menu");
+                                if data.quick_menu {
+                                    ui.small_button("Remove").clicked().then(|| {
+                                        data.input_settings.edit_tool = EditTool::Remove;
+                                    });
+                                    for s in data.stage.iter_mut() {
+                                        ui.separator();
+                                        if s.enabled {
+                                            ui.horizontal(|ui| {
+                                                for b in &s.buildings {
+                                                    if ui.small_button(format!("{}", b.symbol())).clicked() {
+                                                        data.input_settings.edit_tool = EditTool::Build(Building::new(*b));
+                                                    }
+                                                }
+                                            });
+                                        } else {
+                                            ui.small_button(format!("{} unlock early", egui_phosphor::LOCK)).clicked().then(|| {
+                                                s.enabled = true;
+                                            });
+                                        }
+                                    }
+                                }else{
+                            
                                     if ui.small_button("Delete").clicked() {
                                         data.input_settings.edit_tool = EditTool::Remove;
                                     }
-                                });
                                 popup_layer_id = ui.layer_id();
                                 for i in &data.stage {
                                     if i.enabled {
@@ -494,7 +575,12 @@ async fn main() {
                                                                     + &building
                                                                         .required_adj
                                                                         .iter()
-                                                                        .map(|x| x.symbol().replace(" ", "[empty space]"))
+                                                                        .map(|x| {
+                                                                            x.symbol().replace(
+                                                                                "  ",
+                                                                                "[empty space]",
+                                                                            )
+                                                                        })
                                                                         .collect::<String>(),
                                                             )
                                                             .id_source(
@@ -515,7 +601,12 @@ async fn main() {
                                                                 + &building
                                                                     .optional_adj
                                                                     .iter()
-                                                                    .map(|x| x.symbol().replace("  ", "[empty space]"))
+                                                                    .map(|x| {
+                                                                        x.symbol().replace(
+                                                                            "  ",
+                                                                            "[empty space]",
+                                                                        )
+                                                                    })
                                                                     .collect::<String>(),
                                                         )
                                                         .id_source(
@@ -535,7 +626,12 @@ async fn main() {
                                                                     + &building
                                                                         .tile_adj
                                                                         .iter()
-                                                                        .map(|x| x.symbol().replace("  ", "[empty space]"))
+                                                                        .map(|x| {
+                                                                            x.symbol().replace(
+                                                                                "  ",
+                                                                                "[empty space]",
+                                                                            )
+                                                                        })
                                                                         .collect::<String>(),
                                                             )
                                                             .id_source(
@@ -550,9 +646,6 @@ async fn main() {
                                                             });
                                                             ui.end_row();
                                                         }
-
-
-
                                                     },
                                                 );
                                                 ui.add_sized(
@@ -589,12 +682,19 @@ async fn main() {
                                         });
                                     }
                                 }
-                            })
-                            .response;
-                            data.popup_hover= vert.hovered();
-                    });
+                            }
+                            });
+                    }) {
+
+                    Some(a) => {
+                        if let Some(p) = egui_ctx.pointer_hover_pos() { 
+                        data.popup_hover = a.response.rect.signed_distance_to_pos(p) < 0.0;
+                    }
+                    },
+                    None => {},
+};
             }
-            
+
             // egui_ctx.move_to_top(popup_layer_id);
 
             if unlock != -1 && data.stage.len() > (unlock as usize) {
@@ -607,16 +707,17 @@ async fn main() {
                         .switch_tool_rect
                         .contains(o.pointer.hover_pos().unwrap())
                     {
+                        
                         data.input_settings.select_tool = match &data.input_settings.select_tool {
-                            SelectTool::Click => SelectTool::Rect,
-                            SelectTool::Rect => SelectTool::Click,
+                            SelectTool::Add => SelectTool::Plan,
+                            SelectTool::Plan => SelectTool::Add,
                         };
                     }
                     if data
                         .select_building_rect
                         .contains(o.pointer.hover_pos().unwrap())
                     {
-                        data.popup = true;
+                        data.popup = !data.popup;
                     }
                 }
 
@@ -627,7 +728,6 @@ async fn main() {
                     start_in_area = egui_ctx.is_pointer_over_area();
                 }
                 if !start_in_area {
-                    data.intent = Intent::Move;
                     if mouse_down.is_some() && !data.popup_hover {
                         if let Some(pos) = o.pointer.hover_pos() {
                             data.screen_offset = (
@@ -643,8 +743,6 @@ async fn main() {
         let mut resize = false;
 
         egui_macroquad::ui(|egui_ctx| {
-
-
             if resize {
                 egui_ctx.set_pixels_per_point(data.ui_scale * og_ppp);
             }
@@ -669,37 +767,12 @@ async fn main() {
                         .auto_sized()
                         .show(egui_ctx, |ui| {
                             ui.horizontal(|ui| {
-                                data.switch_tool_rect =
-                                    ui.heading(&data.input_settings.select_tool.icon()).rect;
-
+                                let tool = ui.heading(&data.input_settings.select_tool.icon());
+                                data.switch_tool_rect = tool.rect;
                                 ui.add_space(10.0);
                                 data.select_building_rect =
                                     ui.heading(&data.input_settings.edit_tool.icon()).rect;
-
-                                ui.add_space(10.0);
-                                let color = match &data.intent {
-                                    Intent::Nothing => egui::Color32::from_rgb(0, 0, 0),
-                                    Intent::Move => egui::Color32::from_rgb(0, 0, 0),
-                                    Intent::CanAdd(a) => egui::Color32::from_rgb(50, 200, 50),
-                                    Intent::CannotAddLackingRequirement(_a, _b, _c) => {
-                                        egui::Color32::from_rgb(200, 50, 50)
-                                    }
-                                    Intent::CannotAddLackingResources(_a, _b) => {
-                                        egui::Color32::from_rgb(200, 50, 50)
-                                    }
-                                };
-                                let text = match &data.intent {
-                                    Intent::Nothing => "None".to_owned(),
-                                    Intent::Move => {
-                                        egui_phosphor::icons::ARROWS_OUT_CARDINAL.to_owned()
-                                    }
-                                    Intent::CanAdd(a) => format!("Build {}", &a.symbol()),
-                                    Intent::CannotAddLackingRequirement(a, b, c) => {
-                                        "Build".to_owned()
-                                    }
-                                    Intent::CannotAddLackingResources(a, b) => "Destroy".to_owned(),
-                                };
-                                ui.colored_label(color, text);
+                                    
                             });
 
                             ui.add_space(30.0);
