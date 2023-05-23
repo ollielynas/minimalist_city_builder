@@ -1,4 +1,4 @@
-use egui::{Color32, Frame, Id};
+use egui::{Color32, Frame, Id, Rect, Pos2};
 use macroquad::prelude::collections::storage;
 use std::collections::HashMap;
 
@@ -30,7 +30,8 @@ pub struct Tile {
     pub land: [[Building; 8]; 8],
     pub buildings: HashMap<BuildingType, i32>,
     pub neighbors_buildings: HashMap<BuildingType, i32>,
-
+    #[savefile_versions = "6.."]
+    pub summary: bool,
     #[savefile_versions = "3.."]
     pub planned: HashMap<Pos, BuildingType>,
 }
@@ -40,6 +41,7 @@ impl Tile {
         let land: [[Building; 8]; 8] = Default::default();
         Tile {
             planned: HashMap::new(),
+            summary: false,
             pos: coord,
             land,
             buildings: HashMap::new(),
@@ -65,18 +67,21 @@ impl Tile {
         res: &mut HashMap<Resource, i32>,
         storage: i32,
         cash_storage: i32,
+        per_sec: &mut HashMap<Resource, i32>,
     ) {
         for i in &self.buildings {
             for n in i.0.output() {
+                per_sec.insert(n.0, per_sec.get(&n.0).unwrap_or(&0) + n.1 * i.1);
                 res.insert(
                     n.0,
                     (res.get(&n.0).unwrap_or(&0) + n.1 * i.1).min(match n.0 {
                         Resource::CashStorage => cash_storage + storage,
-                        Resource::Storage => storage,
+                        Resource::Tax => cash_storage+storage,
                         _ => storage,
                     }),
                 );
             }
+            
         }
     }
 
@@ -100,7 +105,7 @@ impl Tile {
                     for c in &self.land[x][y].cost {
                         resources.insert(c.0, resources.get(&c.0).unwrap_or(&0) + c.1);
                     }
-                    self.land[x][y] = Building::new(BuildingType::Ground);
+                    self.land[x][y] = Building::new(&BuildingType::Ground);
                 }
             }
         }
@@ -158,21 +163,132 @@ impl Tile {
         let mut changed = false;
         let mut set_buildings: Vec<(Pos, Building)> = vec![];
 
+        let mut s = false;
+        
+
+        let window_rect = egui::Rect::from_min_size(
+                            egui::Pos2::new(
+                offset.0 + self.pos.x as f32 * 202.0,
+                offset.1 + self.pos.y as f32 * 202.0,
+            ),
+                            egui::Vec2::new(202.0, 202.0),
+        );
+
+
+
         egui::Area::new(Id::new(self.pos.to_string()))
             .fixed_pos(egui::Pos2::new(
                 offset.0 + self.pos.x as f32 * 202.0,
                 offset.1 + self.pos.y as f32 * 202.0,
             ))
+            
             .order(egui::Order::Background)
             .show(egui_ctx, |ui| {
+                egui::Frame::none()
+    .fill(egui::Color32::from_rgb(215, 235, 210))
+    .show(ui, |ui| {
+                let hover = window_rect.contains(egui_ctx.pointer_hover_pos().unwrap_or_default());
                 ui.style_mut().spacing.item_spacing = egui::Vec2::new(0.0, 0.0);
+                let mut c = false;
+                ui.input_mut(|i| {
+                    
+                        c = i.key_down(egui::Key::C);
+                        s = i.key_down(egui::Key::S);
+                    
+                    });
+                    
+                    
+                    
+                    
+                    if self.summary || s {
+                    ui.checkbox(&mut self.summary, "Better Performance");
+                
+                        egui::Grid::new("grid")
+                        .max_col_width(202.0)
+                        .min_col_width(202.0)
+                        
+                        .show(ui, |ui| {
+                    
+                    for i in self.buildings.iter() {
+                        if i.0 == &BuildingType::Ground {
+                            continue;
+                        }
+                        ui.label(format!("{}: {}", i.0.symbol(), i.1));
+                        ui.end_row();
+                    
+                }});
+                
+                }{
 
+                if false && c {
+                    if ui.put(
+                        egui::Rect::from_min_size(
+                            egui::Pos2::new(0.0, 0.0),
+                            egui::Vec2::new(202.0, 202.0),
+                        )
+                        , egui::Button::new(format!("{}{} paste", egui_phosphor::CLIPBOARD, egui_phosphor::ARROW_FAT_LEFT)),
+                        ).clicked() {
+                            ui.output_mut(|o| {
+                                o.copied_text = self.land.concat().iter().map(|x|x.symbol.clone()).collect::<String>()
+                                ;
+                            });
+                        }
+
+                    if ui.put(
+                        egui::Rect::from_min_size(
+                            egui::Pos2::new(0.0, 0.0),
+                            egui::Vec2::new(202.0, 202.0),
+                        )
+                        , egui::Button::new(format!("{}{} paste", egui_phosphor::CLIPBOARD, egui_phosphor::ARROW_FAT_RIGHT)),
+                        ).clicked() {
+                            let mut potential_text = "".to_owned();
+                            ui.output_mut(|o| {
+                                // potential_text = o.copied_text;
+                            });
+
+                            if potential_text.len() == 64 {
+                                // let mut new_land = [[Building::new(BuildingType::Ground); 8]; 8];
+                                for (i, c) in potential_text.chars().enumerate() {
+                                    // new_land[i / 8][i % 8] = Building::new(BuildingType::from_symbol(c));
+                                }
+                                // self.land = new_land;
+                            }
+                    }
+                }
                 for i in 0..8 {
                     ui.horizontal(|ui| {
                         for j in 0..8 {
+
+
+                            
+                            if !hover {
+                                let response = ui.add_sized([25.0,25.0], egui::Label::new(&self.land[i][j].symbol));
+                                
+                                if let Some(b) = self.planned.get(&Pos {
+                                    x: i as i32,
+                                    y: j as i32,
+                                }) {
+                                    ui.put(
+                                        response.rect,
+                                        egui::Label::new(
+                                            egui::RichText::new(&b.symbol()).weak().to_owned(),
+                                        ),
+                                    );
+    
+                                    set_buildings.push((
+                                        Pos {
+                                            x: i as i32,
+                                            y: j as i32,
+                                        },
+                                        Building::new(&b),
+                                    ));
+                                }
+                                continue;
+                            }
                             let text = &self.land[i][j].symbol.to_owned();
 
                             let square = egui::Button::new(&self.land[i][j].symbol)
+                            
                                 .stroke(egui::Stroke::new(
                                     1.0,
                                     egui::Color32::from_rgb(200, 235, 200),
@@ -205,16 +321,15 @@ impl Tile {
                                     )),
                                 square,
                             );
-
                             let text = match &input_settings.edit_tool {
                                 EditTool::Build(b) => {
-                                    if self.is_valid(
+                                    if (self.is_valid(
                                         Pos {
                                             x: i as i32,
                                             y: j as i32,
                                         },
                                         b,
-                                    ) && self.land[i][j].building_type == BuildingType::Ground
+                                    ) && self.land[i][j].building_type == BuildingType::Ground) || input_settings.select_tool == SelectTool::Plan
                                     {
                                         egui::RichText::new(&b.symbol).to_owned()
                                     } else {
@@ -232,25 +347,27 @@ impl Tile {
                             if response.hovered() || ui.input(|r| r.key_down(egui::Key::Q)) {
                                 ui.put(response.rect, egui::Label::new(text));
                             }
-                            if let Some(b) = self.planned.get(&Pos {
-                                x: i as i32,
-                                y: j as i32,
-                            }) {
-                                ui.put(
-                                    response.rect,
-                                    egui::Label::new(
-                                        egui::RichText::new(&b.symbol()).weak().to_owned(),
-                                    ),
-                                );
 
-                                set_buildings.push((
-                                    Pos {
-                                        x: i as i32,
-                                        y: j as i32,
-                                    },
-                                    Building::new(b.clone()),
-                                ));
-                            }
+                            if let Some(b) = self.planned.get(&Pos {
+                                    x: i as i32,
+                                    y: j as i32,
+                                }) {
+                                    ui.put(
+                                        response.rect,
+                                        egui::Label::new(
+                                            egui::RichText::new(&b.symbol()).weak().to_owned(),
+                                        ),
+                                    );
+    
+                                    set_buildings.push((
+                                        Pos {
+                                            x: i as i32,
+                                            y: j as i32,
+                                        },
+                                        Building::new(&b),
+                                    ));
+                                }
+                            
 
                             if response.clicked() {
                                 if input_settings.select_tool == SelectTool::Plan {
@@ -273,21 +390,23 @@ impl Tile {
                                     match &input_settings.edit_tool {
                                         crate::EditTool::Build(b) => b.clone(),
                                         crate::EditTool::Remove => {
-                                            Building::new(BuildingType::Ground)
+                                            Building::new(&BuildingType::Ground)
                                         }
                                     },
                                 ));
                             }
-                        }
+                    }
                     });
-                }
-                // });
+                };
+            }
+                
+                });
             });
 
         for (i, new_building) in set_buildings {
             let mut break_building = false;
 
-            let ground = Building::new(BuildingType::Ground);
+            let ground = Building::new(&BuildingType::Ground);
 
             let current = &self.land[i.x as usize][i.y as usize];
             if current.building_type == new_building.building_type {
@@ -296,7 +415,7 @@ impl Tile {
             }
 
             if new_building.building_type == BuildingType::Ground {
-                for i in Building::new(current.building_type).cost {
+                for i in Building::new(&current.building_type).cost {
                     let storage = resources.get(&Resource::Storage).unwrap_or(&100);
                     resources.insert(i.0, (resources.get(&i.0).unwrap_or(&0) + i.1).min(*storage));
                 }
@@ -334,7 +453,7 @@ impl Tile {
                 }
             }
 
-            self.land[i.x as usize][i.y as usize] = new_building.clone();
+            self.land[i.x as usize][i.y as usize] = new_building;
             changed = true;
         }
         if changed {

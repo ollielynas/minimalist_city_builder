@@ -1,13 +1,22 @@
+
+#![cfg_attr(
+  all(
+    target_os = "windows",
+    not(debug_assertions),
+  ),
+  windows_subsystem = "windows"
+)]
+
 use std::{
     collections::{HashMap, HashSet},
     fmt::format,
     time::Instant,
 };
 
-const GLOBAL_VERSION: u32 = 4;
+const GLOBAL_VERSION: u32 = 6;
 
 use egui::{
-    self, epaint::Shadow, Align2, Button, Frame, Id, LayerId, Pos2, Sense, TextStyle, Vec2,
+    self, epaint::Shadow, Align2, Button, Frame, Id, LayerId, Pos2, Sense, TextStyle, Vec2, Order, Color32,
 };
 use egui_macroquad;
 use egui_phosphor;
@@ -47,7 +56,7 @@ impl Pos {
             self.added(Pos::new(1, 0)),
             self.added(Pos::new(0, -1)),
             self.added(Pos::new(0, 1)),
-            self.clone(),
+            *self,
         ]
     }
 
@@ -97,7 +106,7 @@ impl Default for InputSettings {
     fn default() -> Self {
         InputSettings {
             select_tool: SelectTool::Add,
-            edit_tool: EditTool::Build(Building::new(BuildingType::House)),
+            edit_tool: EditTool::Build(Building::new(&BuildingType::House)),
         }
     }
 }
@@ -181,7 +190,7 @@ impl Data {
             tiles: HashMap::new(),
             input_settings: InputSettings {
                 select_tool: SelectTool::Add,
-                edit_tool: EditTool::Build(Building::new(BuildingType::House)),
+                edit_tool: EditTool::Build(Building::new(&BuildingType::House)),
             },
             screen_offset: (100.0, 100.0),
             resources: HashMap::new(),
@@ -240,19 +249,21 @@ impl Data {
     fn render(&mut self, egui_ctx: &egui::Context) {
         let mut update_adjacent: Option<Pos> = None;
 
+        
+
         for i in &mut self.tiles {
             if egui_ctx.screen_rect().contains(egui::Pos2::new(
-                self.screen_offset.0 + (i.0.x as f32) * 300.0,
-                self.screen_offset.1 + (i.0.y as f32) * 280.0,
+                self.screen_offset.0 + (i.0.x as f32) * 202.0,
+                self.screen_offset.1 + (i.0.y as f32) * 202.0,
             )) || egui_ctx.screen_rect().contains(egui::Pos2::new(
-                self.screen_offset.0 + (i.0.x as f32) * 300.0 + 300.0,
-                self.screen_offset.1 + (i.0.y as f32) * 280.0 + 300.0,
+                self.screen_offset.0 + (i.0.x as f32) * 202.0 + 202.0,
+                self.screen_offset.1 + (i.0.y as f32) * 202.0 + 202.0,
             )) || egui_ctx.screen_rect().contains(egui::Pos2::new(
-                self.screen_offset.0 + (i.0.x as f32) * 300.0,
-                self.screen_offset.1 + (i.0.y as f32) * 280.0 + 300.0,
+                self.screen_offset.0 + (i.0.x as f32) * 202.0,
+                self.screen_offset.1 + (i.0.y as f32) * 202.0 + 202.0,
             )) || egui_ctx.screen_rect().contains(egui::Pos2::new(
-                self.screen_offset.0 + (i.0.x as f32) * 300.0 + 300.0,
-                self.screen_offset.1 + (i.0.y as f32) * 280.0,
+                self.screen_offset.0 + (i.0.x as f32) * 202.0 + 202.0,
+                self.screen_offset.1 + (i.0.y as f32) * 202.0,
             )) {
                 if i.1.render(
                     egui_ctx,
@@ -268,13 +279,7 @@ impl Data {
         let mut add: Vec<Pos> = vec![];
         for i in &self.new_pos {
             if &i.cost() <= self.resources.get(&Resource::Tax).unwrap_or(&0)
-                && (egui_ctx.screen_rect().contains(egui::Pos2::new(
-                    self.screen_offset.0 + (i.x as f32) * 300.0,
-                    self.screen_offset.1 + (i.y as f32) * 280.0,
-                )) || egui_ctx.screen_rect().contains(egui::Pos2::new(
-                    self.screen_offset.0 + (i.x as f32) * 300.0 + 300.0,
-                    self.screen_offset.1 + (i.y as f32) * 280.0 + 300.0,
-                )))
+                
             {
                 egui::Window::new(i.to_string())
                     .title_bar(false)
@@ -284,21 +289,22 @@ impl Data {
                     .fixed_rect(egui::Rect::from_two_pos(
                         Pos2::new(
                             self.screen_offset.0
-                                + (i.x as f32) * 300.0
+                                + (i.x as f32) * 202.0
                                 + (match i.x < 0 {
-                                    true => 200.0,
+                                    true => 100.0,
                                     false => 0.0,
                                 }),
+                                
                             self.screen_offset.1
-                                + (i.y as f32) * 280.0
+                                + (i.y as f32) * 202.0
                                 + (match i.y < 0 {
-                                    true => 200.0,
+                                    true => 180.0,
                                     false => 0.0,
                                 }),
                         ),
                         Pos2::new(
-                            self.screen_offset.0 + ((i.x + 1) as f32) * 300.0,
-                            self.screen_offset.1 + ((i.y + 1) as f32) * 280.0,
+                            self.screen_offset.0 + ((i.x + 1) as f32) * 202.0,
+                            self.screen_offset.1 + ((i.y + 1) as f32) * 240.0,
                         ),
                     ))
                     .show(egui_ctx, |ui| {
@@ -325,11 +331,14 @@ impl Data {
 
 #[macroquad::main("egui with macroquad")]
 async fn main() {
+
+    let mut stats = false;
+
+    let mut per_sec:HashMap<Resource, i32> = HashMap::new();
     let mut data = Data::new("".to_owned());
     let mut menu = true;
     match savefile::load_file::<Data, &str>("game_instance.bin", GLOBAL_VERSION) {
         Ok(d) => {
-
             // create new folder called game files and then move the file "game_instance.bin" into it
             println!("{:?}",std::fs::create_dir("saves"));
             savefile::save_file("saves/game_instanceOld World.bin", GLOBAL_VERSION, &d).unwrap();
@@ -375,10 +384,15 @@ async fn main() {
                                 ui.add(egui::widgets::Button::new(f.file_name().to_str().unwrap()))
                                     .clicked()
                                     .then(|| {
-                                        if let Ok(load) = savefile::load_file::<Data, &str>(
+                                        match  savefile::load_file::<Data, &str>(
                                             &format!("saves/{}", f.file_name().to_str().unwrap()),GLOBAL_VERSION) {
-                                            data = load;
+                                            Ok(load) => {
+                                                data = load;
                                             menu = false;
+                                            }
+                                            Err(e) => {
+                                                println!("{:?}", e);
+                                            }
                                         }
                                         
                                     });
@@ -403,7 +417,7 @@ async fn main() {
                         
                         if data.name != "".to_owned() && ui.add(egui::widgets::Button::new("New Game"))
                             .clicked()
-                             {
+                            {
                                 menu = false;
                             }
                         
@@ -425,8 +439,10 @@ async fn main() {
             for i in &mut data.tiles {
                 (storage, cash_storage) = i.1.process_storage(storage, cash_storage);
             }
+            per_sec.clear();
             for i in &mut data.tiles {
-                i.1.processes_resources(&mut data.resources, storage, cash_storage);
+                i.1.processes_resources(&mut data.resources, storage, cash_storage, &mut per_sec) 
+                
             }
 
             for i in &mut data.stage {
@@ -476,7 +492,7 @@ async fn main() {
                                             ui.horizontal(|ui| {
                                                 for b in &s.buildings {
                                                     if ui.small_button(format!("{}", b.symbol())).clicked() {
-                                                        data.input_settings.edit_tool = EditTool::Build(Building::new(*b));
+                                                        data.input_settings.edit_tool = EditTool::Build(Building::new(b));
                                                     }
                                                 }
                                             });
@@ -501,7 +517,7 @@ async fn main() {
                                         ));
                                         ui.group(|ui| {
                                             for j in &i.buildings {
-                                                let building = Building::new(*j);
+                                                let building = Building::new(j);
                                                 if ui
                                                     .small_button(format!(
                                                         "{} {}",
@@ -511,7 +527,7 @@ async fn main() {
                                                     .clicked()
                                                 {
                                                     data.input_settings.edit_tool =
-                                                        EditTool::Build(Building::new(*j));
+                                                        EditTool::Build(Building::new(j));
                                                 }
                                                 egui::Grid::new(j.name() + &i.title).show(
                                                     ui,
@@ -738,48 +754,105 @@ async fn main() {
                     }
                 }
             });
-        });
-        egui_macroquad::draw();
-        let mut resize = false;
+            egui::Area::new("data")
+            .fixed_pos(egui::Pos2::new(5.0, 5.0))
+            
+            .order(Order::Foreground)
+            .show(egui_ctx, |ui| {
+                ui.group(|ui| {
+                egui::Grid::new("grid")
+                                        .show(ui, |ui| {
 
-        egui_macroquad::ui(|egui_ctx| {
-            if resize {
-                egui_ctx.set_pixels_per_point(data.ui_scale * og_ppp);
-            }
-            egui::SidePanel::left("side_panel")
-                .frame(Frame::none().inner_margin(10.0))
-                .resizable(false)
-                .show_separator_line(false)
-                .show(egui_ctx, |ui| {
+                    let show_full_data = ui.rect_contains_pointer(
+                        egui::Rect::from_min_size(
+                            egui::Pos2::new(0.0, 0.0),
+                            egui::Vec2::new(100.0, 500.0),
+                        ),
+                    );
+                        
+                    let max_storage = data.resources.get(&Resource::Storage).unwrap_or(&0);
+                    let max_cash = data.resources.get(&Resource::CashStorage).unwrap_or(&0);
                     for i in data.resources.iter() {
                         if i.1 == &0 {
                             continue;
                         }
-                        ui.label(format!("{} {}: {}", i.0.symbol(), i.0.name(), i.1));
-                    }
-                    egui::Window::new("Controls")
-                        .anchor(Align2::LEFT_BOTTOM, egui::Vec2 { x: 30.0, y: 30.0 })
-                        .frame(Frame::none())
-                        .title_bar(false)
-                        .default_pos(egui::Pos2::new(00.0, 30.0))
-                        .constrain(true)
-                        .movable(false)
-                        .auto_sized()
-                        .show(egui_ctx, |ui| {
-                            ui.horizontal(|ui| {
+                            if show_full_data {
+                                ui.label(format!("{} {}", i.0.symbol(), i.0.name()));
+                                ui.label(format!("{}", i.1));
+                                ui.label(format!("{}/s", (*per_sec.get(i.0).unwrap_or(&0) as f32/0.3).round()/10.0));
+                                ui.label(format!("{} %",( (*i.1 as f32)/(*max_storage as f32 + match i.0 {
+                                    Resource::Tax => *max_cash as f32,
+                                    _ => 0.0,
+                                })*100.0).round()));
+
+                                ui.end_row();
+                            } else {
+                                ui.label(format!("{} {}",i.0.symbol(), i.1));
+                                ui.end_row();
+                            }
+
+                        }
+                    });
+                });
+            });
+
+            egui::Area::new("buttons")
+            .anchor(Align2::LEFT_BOTTOM, [30.0,-30.0])
+            .order(Order::Foreground)
+            
+            .show(egui_ctx, |ui| {
+                ui.horizontal(|ui| {
                                 let tool = ui.heading(&data.input_settings.select_tool.icon());
                                 data.switch_tool_rect = tool.rect;
                                 ui.add_space(10.0);
                                 data.select_building_rect =
-                                    ui.heading(&data.input_settings.edit_tool.icon()).rect;
+                                ui.heading(&data.input_settings.edit_tool.icon()).rect;
                                     
-                            });
+            });
+            });
 
-                            ui.add_space(30.0);
-                        });
-                });
         });
         egui_macroquad::draw();
+
+        // egui_macroquad::ui(|egui_ctx| {
+
+        //     egui::SidePanel::left("side_panel")
+        //         .frame(Frame::none().inner_margin(10.0))
+        //         .resizable(false)
+        //         .show_separator_line(false)
+        //         .show(egui_ctx, |ui| {
+
+        //             egui::Window::new("Controls")
+        //                 .anchor(Align2::LEFT_BOTTOM, egui::Vec2 { x: 30.0, y: 30.0 })
+        //                 .frame(Frame::none())
+        //                 .title_bar(false)
+        //                 .default_pos(egui::Pos2::new(00.0, 30.0))
+        //                 .constrain(true)
+        //                 .movable(false)
+        //                 .auto_sized()
+        //                 .show(egui_ctx, |ui| {
+        //                     ui.horizontal(|ui| {
+        //                         let tool = ui.heading(&data.input_settings.select_tool.icon());
+        //                         data.switch_tool_rect = tool.rect;
+        //                         ui.add_space(10.0);
+        //                         data.select_building_rect =
+        //                             ui.heading(&data.input_settings.edit_tool.icon()).rect;
+                                    
+        //                     });
+
+        //                     ui.add_space(30.0);
+        //                 });
+        //         });
+        // });
+        // egui_macroquad::draw();
+
+        // check if in dev mode
+        #[cfg(debug_assertions)]
+        {
+            draw_text("debug build", 10.0, 10.0, 15.0, BLACK);
+            draw_text(&format!("fps: {}", get_fps()), 30.0, 30.0, 20.0, RED);
+            
+        }
 
         next_frame().await;
     }

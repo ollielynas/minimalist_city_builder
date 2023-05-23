@@ -40,6 +40,7 @@ impl Stage {
                     ConcreteMixer,
                     Gauge,
                     Asphalt,
+                    Carrot,
                 ],
                 5 => vec![
                     Bank,
@@ -101,6 +102,7 @@ pub enum BuildingType {
     Apartment,
     FireStation,
     PoliceStation,
+    Carrot,
     Hospital,
     FoodTruck,
 }
@@ -127,6 +129,7 @@ impl BuildingType {
             PoliceStation => egui_phosphor::POLICE_CAR,
             Hospital => egui_phosphor::FIRST_AID_KIT,
             FoodTruck => egui_phosphor::VAN,
+            Carrot => egui_phosphor::CARROT,
 
         }.to_owned()
     }
@@ -152,6 +155,7 @@ impl BuildingType {
             PoliceStation => "Police Station",
             Hospital => "Hospital",
             FoodTruck => "Food Truck",
+            Carrot => "Carrot",
         }.to_owned()
     }
 
@@ -159,6 +163,7 @@ impl BuildingType {
         match self {
             Apartment => vec![(Resource::PlaceholderResource, 0)],
             Grain => vec![(Resource::Food, 1), (Resource::Seed, 1)],
+            Carrot => vec![(Resource::Food, 3)],
             Tree => vec![(Resource::Wood, 1)],
             Shop => vec![(Resource::Tax, 2)],
             Warehouse => vec![(Resource::Storage, 100)],
@@ -202,7 +207,7 @@ impl Resource {
     pub fn symbol(&self) -> String {
         match self {
             Resource::Food => egui_phosphor::HAMBURGER,
-            Resource::Tax => egui_phosphor::HAND_COINS,
+            Resource::Tax => egui_phosphor::CURRENCY_DOLLAR,
             Resource::Wood => egui_phosphor::TREE_EVERGREEN,
             Resource::Seed => egui_phosphor::DROP,
             Resource::Storage => egui_phosphor::PACKAGE,
@@ -245,23 +250,20 @@ pub struct Building {
 
 impl Default for Building {
     fn default() -> Self {
-        Building::new(BuildingType::Ground)
+        Building::new(&BuildingType::Ground)
     }
 }
 
 
 
 impl Building {
-    pub fn new(building_type: BuildingType) -> Building {
+    pub fn new(building_type: &BuildingType) -> Building {
 
         let mut required_adj = Vec::new();
         if [Battery, SteelProduction, ConcreteMixer].contains(&building_type) {required_adj.push(Factory)} // must be next to factory
-        if [ConcreteMixer].contains(&building_type) {required_adj.push(Gauge)} // must be next to battery
+        if [ConcreteMixer].contains(&building_type) {required_adj.push(Gauge)}
 
-        if building_type == BuildingType::BasicResearchFacility {
-            required_adj.push(Battery);
-            required_adj.push(House)
-        }
+        if building_type == &BasicResearchFacility {required_adj.push(House); required_adj.push(Battery)}
         
 
 
@@ -271,15 +273,20 @@ impl Building {
         let mut optional_adj = Vec::new();
         if ![BasicResearchFacility].contains(&building_type)  {optional_adj.push(Ground)} // cannot be next to ground
 
-        if ![].contains(&building_type) {optional_adj.push(building_type)} // cannot be next to self
+        if ![].contains(&building_type) {optional_adj.push(*building_type)} // cannot be next to self
 
         for i in [
             (Warehouse, Shop),
             (Battery, Factory),
             (SteelProduction, Factory),
+            (House, BasicResearchFacility),
+            (BasicResearchFacility, Battery),
+            (Factory, ConcreteMixer),
+            (ConcreteMixer, Gauge),
+            (Grain, Carrot),
             ] {
-            if i.0 == building_type {optional_adj.push(i.1)}
-            if i.1 == building_type {optional_adj.push(i.0)}
+            if &i.0 == building_type {optional_adj.push(i.1)}
+            if &i.1 == building_type {optional_adj.push(i.0)}
         }
 
         // city tiles 
@@ -289,7 +296,7 @@ impl Building {
             }
             required_adj.push(Asphalt)
         }
-        if building_type == BuildingType::Asphalt {
+        if building_type == &BuildingType::Asphalt {
             optional_adj.append(city_tiles.to_vec().as_mut())
         }
 
@@ -302,7 +309,7 @@ impl Building {
 
         let mut tile_adj = match building_type { // mut be within one tile of:
             Shop => vec![Grain, House, Tree],
-            Grain|Tree => vec![House],
+            Grain|Tree|Carrot => vec![House],
             Factory => vec![Warehouse],
             Apartment => vec![FireStation, Hospital, PoliceStation],
             Ground|House|Warehouse|Battery|SteelProduction => Vec::new(),
@@ -324,6 +331,7 @@ impl Building {
         }
 
         let cost = match building_type {
+            Carrot => vec![(Resource::Food, 50)],
             Asphalt => vec![(Resource::Concrete, 1)],
             Apartment => vec![(Resource::Food, 1), (Resource::Concrete, 50), (Resource::Steel, 10)],
             Shop => vec![(Resource::Wood, 50), (Resource::Food, 50)],
@@ -347,7 +355,7 @@ impl Building {
 
 
         Building {
-            building_type,
+            building_type: *building_type,
             required_adj,
             optional_adj,
             tile_adj,
@@ -355,4 +363,36 @@ impl Building {
             symbol: building_type.symbol(),
         }
     }
+
+    // fn from_symbol(b:String) -> BuildingType {
+    //     match b {
+    //         Ground => "  ",
+    //         Apartment => egui_phosphor::BUILDINGS,
+    //         Tree => egui_phosphor::TREE,
+    //         House => egui_phosphor::HOUSE,
+    //         Grain => egui_phosphor::GRAINS,
+    //         Shop => egui_phosphor::STOREFRONT,
+    //         Warehouse => egui_phosphor::WAREHOUSE,
+    //         Battery => egui_phosphor::BATTERY_CHARGING_VERTICAL,
+    //         Factory => egui_phosphor::FACTORY,
+    //         SteelProduction => egui_phosphor::BARCODE,
+    //         Bank => egui_phosphor::BANK,
+    //         BasicResearchFacility => egui_phosphor::CIRCUITRY,
+    //         ConcreteMixer => egui_phosphor::HOURGLASS_MEDIUM,
+    //         Gauge => egui_phosphor::GAUGE,
+    //         Asphalt => egui_phosphor::SQUARE,
+    //         FireStation => egui_phosphor::FIRE_EXTINGUISHER,
+    //         PoliceStation => egui_phosphor::POLICE_CAR,
+    //         Hospital => egui_phosphor::FIRST_AID_KIT,
+    //         FoodTruck => egui_phosphor::VAN,
+
+    //         // invert above match statement
+
+    //         "  ".to => Ground,
+
+
+
+            
+    //     }
+    // }
 }
