@@ -50,6 +50,25 @@ impl Stage {
                     Hospital,
                     FoodTruck,
                 ],
+                6 => vec![
+                    Lightning,
+                    Siren,
+                    AirTrafficControl,
+                    Runway,
+                    Cpu,
+                    StairsIntoTheVoid,
+                    Garage,
+                    LightHouse,
+                    Lightbulb,
+                    Mosque,
+                    NuclearPowerPlant,
+                    Rocket,
+                    RobotFactory,
+                    Cookie,
+                    Database,
+                    PalmTree,
+                    Turret,
+                ],
                 _ => vec![],
             },
             /// descriptions need updating
@@ -105,6 +124,25 @@ pub enum BuildingType {
     Carrot,
     Hospital,
     FoodTruck,
+    Lightning,
+    Siren,
+    AirTrafficControl,
+    Runway,
+    Cpu,
+    StairsIntoTheVoid,
+    Garage,
+    LightHouse,
+    Lightbulb,
+    Mosque,
+    NuclearPowerPlant,
+    Rocket,
+    RobotFactory,
+    Cookie,
+    Database,
+    PalmTree,
+    Turret,
+    
+
 }
 
 impl BuildingType {
@@ -130,6 +168,24 @@ impl BuildingType {
             Hospital => egui_phosphor::FIRST_AID_KIT,
             FoodTruck => egui_phosphor::VAN,
             Carrot => egui_phosphor::CARROT,
+            Lightning => egui_phosphor::LIGHTNING,
+            Siren => egui_phosphor::SIREN,
+            AirTrafficControl => egui_phosphor::AIR_TRAFFIC_CONTROL,
+            Runway => egui_phosphor::AIRPLANE_IN_FLIGHT,
+            Cpu => egui_phosphor::CPU,
+            StairsIntoTheVoid => egui_phosphor::STAIRS,
+            Garage => egui_phosphor::GARAGE,
+            LightHouse => egui_phosphor::LIGHTHOUSE,
+            Lightbulb => egui_phosphor::LIGHTBULB,
+            Mosque => egui_phosphor::MOSQUE,
+            NuclearPowerPlant => egui_phosphor::RADIOACTIVE,
+            Rocket => egui_phosphor::ROCKET,
+            RobotFactory => egui_phosphor::ROBOT,
+            Cookie => egui_phosphor::COOKIE,
+            Database => egui_phosphor::DATABASE,
+            PalmTree => egui_phosphor::TREE_PALM,
+            Turret => egui_phosphor::CASTLE_TURRET,
+
 
         }.to_owned()
     }
@@ -156,6 +212,24 @@ impl BuildingType {
             Hospital => "Hospital",
             FoodTruck => "Food Truck",
             Carrot => "Carrot",
+            Lightning => "Lightning",
+            Siren => "Siren",
+            AirTrafficControl => "Air Traffic Control",
+            Runway => "Runway",
+            Cpu => "CPU",
+            StairsIntoTheVoid => "Stairs Into The Void",
+            Garage => "Garage",
+            LightHouse => "Light House",
+            Lightbulb => "Lightbulb",
+            Mosque => "Mosque",
+            NuclearPowerPlant => "Nuclear Power Plant",
+            Rocket => "Rocket",
+            RobotFactory => "Robot Factory",
+            Cookie => "Cookie",
+            Database => "Database",
+            PalmTree => "Palm Tree",
+            Turret => "Turret",
+
         }.to_owned()
     }
 
@@ -182,6 +256,25 @@ impl BuildingType {
             |Factory
              => vec![],
             FoodTruck => vec![(Resource::Tax, 25)],
+
+            Lightning
+            |AirTrafficControl
+            |Runway
+            |Cpu
+            |StairsIntoTheVoid
+            |Garage
+            |LightHouse
+            |Lightbulb
+            |Mosque
+            |NuclearPowerPlant
+            |Rocket
+            |RobotFactory
+            |Cookie
+            |Database
+            |PalmTree
+            |Turret
+            |Siren
+            => vec![(Resource::PlaceholderResource, 0)],
             
         }
     }
@@ -322,6 +415,24 @@ impl Building {
             |PoliceStation
             |Hospital
             |FoodTruck
+            |Siren
+            |LightHouse
+            |Lightning
+            |AirTrafficControl
+            |Runway
+            |Cpu
+            |StairsIntoTheVoid
+            |Garage
+            |Lightbulb
+            |Mosque
+            |NuclearPowerPlant
+            |Rocket
+            |RobotFactory
+            |Cookie
+            |Database
+            |PalmTree
+            |Turret
+
 
             => vec![],
         };
@@ -350,6 +461,24 @@ impl Building {
             Hospital => vec![(Resource::Concrete, 1000), (Resource::Food, 1500), (Resource::BasicScience, 50)],
             PoliceStation => vec![(Resource::Concrete, 500), (Resource::Food, 500)],
             FoodTruck => vec![(Resource::Food, 2000), (Resource::Wood, 700)],
+            Siren
+            |LightHouse
+            |Lightning
+            |AirTrafficControl
+            |Runway
+            |Cpu
+            |StairsIntoTheVoid
+            |Garage
+            |Lightbulb
+            |Mosque
+            |NuclearPowerPlant
+            |Rocket
+            |RobotFactory
+            |Cookie
+            |Database
+            |PalmTree
+            |Turret
+            => vec![(Resource::PlaceholderResource, 0)],
         };
 
 

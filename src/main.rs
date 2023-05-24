@@ -9,21 +9,19 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    fmt::format,
     time::Instant,
 };
 
 const GLOBAL_VERSION: u32 = 6;
 
 use egui::{
-    self, epaint::Shadow, Align2, Button, Frame, Id, LayerId, Pos2, Sense, TextStyle, Vec2, Order, Color32,
+    self, Align2, Frame, Id, Pos2, TextStyle, Order,
 };
 use egui_macroquad;
 use egui_phosphor;
 use macroquad::prelude::*;
 
 extern crate savefile;
-use savefile::prelude::*;
 
 #[macro_use]
 extern crate savefile_derive;
@@ -392,12 +390,20 @@ async fn main() {
                                             &format!("saves/{}", f.file_name().to_str().unwrap()),GLOBAL_VERSION) {
                                             Ok(load) => {
                                                 data = load;
+                                                let mut reset = false;
                                                 for (i,s) in data.stage.iter().enumerate() {
-                                                    if s.buildings.len() != Stage::new(i).buildings.len() {
-                                                        data.stage[i] = Stage::new(i);
+                                                    if s.buildings.len() != Stage::new(i as i32).buildings.len() {
+                                                        reset = true;
+                                                        break;
                                                     }
                                                 }
-                                            menu = false;
+                                                if reset {
+                                                for i in 0..data.stage.len() {
+                                                        data.stage[i] = Stage::new(i as i32);
+                                                    }
+                                                    
+                                                }
+                                                menu = false;
                                             }
                                             Err(e) => {
                                                 println!("{:?}", e);
