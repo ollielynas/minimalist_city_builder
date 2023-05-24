@@ -329,8 +329,12 @@ impl Data {
     }
 }
 
-#[macroquad::main("egui with macroquad")]
+#[macroquad::main("Minimalist City Builder Placeholder Name")]
 async fn main() {
+
+
+
+    
 
     let mut stats = false;
 
@@ -388,6 +392,11 @@ async fn main() {
                                             &format!("saves/{}", f.file_name().to_str().unwrap()),GLOBAL_VERSION) {
                                             Ok(load) => {
                                                 data = load;
+                                                for (i,s) in data.stage.iter().enumerate() {
+                                                    if s.buildings.len() != Stage::new(i).buildings.len() {
+                                                        data.stage[i] = Stage::new(i);
+                                                    }
+                                                }
                                             menu = false;
                                             }
                                             Err(e) => {
@@ -429,6 +438,11 @@ async fn main() {
 
             next_frame().await;
             continue;
+        }
+
+
+        if !data.popup {
+            data.popup_hover = false;
         }
 
         if process.elapsed().as_secs() >= 3 {

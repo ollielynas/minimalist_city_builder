@@ -331,7 +331,7 @@ impl Building {
         }
 
         let cost = match building_type {
-            Carrot => vec![(Resource::Food, 50)],
+            Carrot => vec![(Resource::Seed, 50)],
             Asphalt => vec![(Resource::Concrete, 1)],
             Apartment => vec![(Resource::Food, 1), (Resource::Concrete, 50), (Resource::Steel, 10)],
             Shop => vec![(Resource::Wood, 50), (Resource::Food, 50)],
