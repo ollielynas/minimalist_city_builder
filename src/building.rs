@@ -16,6 +16,8 @@ pub struct Stage {
 }
 
 impl Stage {
+
+    pub fn no_stages() -> i32 {6}
     
     pub fn new(num: i32) -> Stage {
         Stage {
@@ -49,13 +51,13 @@ impl Stage {
                     PoliceStation,
                     Hospital,
                     FoodTruck,
+                    Cpu,
                 ],
                 6 => vec![
                     Lightning,
                     Siren,
                     AirTrafficControl,
                     Runway,
-                    Cpu,
                     StairsIntoTheVoid,
                     Garage,
                     LightHouse,
@@ -71,7 +73,7 @@ impl Stage {
                 ],
                 _ => vec![],
             },
-            /// descriptions need updating
+            // descriptions need updating
             description: match num {
                 1 => "Plop down your house, and some crops, separated by at least one land tile".to_owned(),
                 2 => "Build a warehouse and a battery.".to_owned(),
@@ -216,7 +218,7 @@ impl BuildingType {
             Siren => "Siren",
             AirTrafficControl => "Air Traffic Control",
             Runway => "Runway",
-            Cpu => "CPU",
+            Cpu => "Computational Research Facility",
             StairsIntoTheVoid => "Stairs Into The Void",
             Garage => "Garage",
             LightHouse => "Light House",
@@ -246,6 +248,7 @@ impl BuildingType {
             Bank => vec![(Resource::CashStorage, 1000)],
             BasicResearchFacility => vec![(Resource::BasicScience, 1)],
             ConcreteMixer => vec![(Resource::Concrete, 10)],
+            Cpu => vec![(Resource::Computation, 1)],
             Ground
             |House
             |Gauge
@@ -260,7 +263,6 @@ impl BuildingType {
             Lightning
             |AirTrafficControl
             |Runway
-            |Cpu
             |StairsIntoTheVoid
             |Garage
             |LightHouse
@@ -293,6 +295,7 @@ pub enum Resource {
     Steel,
     BasicScience,
     Concrete,
+    Computation,
     PlaceholderResource,
 }
 
@@ -308,6 +311,7 @@ impl Resource {
             Resource::CashStorage => egui_phosphor::PIGGY_BANK,
             Resource::BasicScience => egui_phosphor::TEST_TUBE,
             Resource::Concrete => egui_phosphor::PAINT_BUCKET,
+            Resource::Computation => egui_phosphor::CPU,
             Resource::PlaceholderResource => egui_phosphor::PLACEHOLDER,
         }.to_owned()
     }
@@ -322,6 +326,7 @@ impl Resource {
             Resource::CashStorage => "Cash Storage",
             Resource::BasicScience => "Basic Science",
             Resource::Concrete => "Concrete",
+            Resource::Computation => "Computation",
             Resource::PlaceholderResource => "Placeholder Resource",
         }.to_owned()
     }
@@ -361,7 +366,7 @@ impl Building {
 
 
 
-        let city_tiles = [Bank, FireStation, PoliceStation, Hospital, Apartment, FoodTruck];
+        let city_tiles = [Bank, FireStation, PoliceStation, Hospital, Apartment, FoodTruck, Cpu];
 
         let mut optional_adj = Vec::new();
         if ![BasicResearchFacility].contains(&building_type)  {optional_adj.push(Ground)} // cannot be next to ground
@@ -393,7 +398,7 @@ impl Building {
             optional_adj.append(city_tiles.to_vec().as_mut())
         }
 
-        let production_city_tiles = [Bank, FoodTruck];
+        let production_city_tiles = [Bank, FoodTruck, Cpu];
 
         
 

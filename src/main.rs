@@ -139,7 +139,7 @@ pub struct Data {
     pub new_pos: Vec<Pos>,
     pub resources: HashMap<Resource, i32>,
 
-    pub stage: [Stage; 5],
+    pub stage: [Stage; 6],
     ui_scale: f32,
     game_scale: f32,
 
@@ -198,6 +198,7 @@ impl Data {
                 Stage::new(3),
                 Stage::new(4),
                 Stage::new(5),
+                Stage::new(6),
             ],
             popup: false,
             popup_hover: false,
@@ -353,7 +354,6 @@ async fn main() {
     println!("Test 3");
 
     egui_macroquad::ui(|egui_ctx| {
-        og_ppp = egui_ctx.pixels_per_point();
         let mut fonts = egui::FontDefinitions::default();
         egui_phosphor::add_to_fonts(&mut fonts);
         egui_ctx.set_fonts(fonts);
@@ -372,7 +372,7 @@ async fn main() {
         let mut hover_text: Option<String> = None;
         if menu {
             egui_macroquad::ui(|egui_ctx| {
-
+                egui_ctx.set_pixels_per_point(data.ui_scale);
                 egui::SidePanel::right("Right side").show(egui_ctx, |ui| {
                     if let Ok(files) = std::fs::read_dir("saves/") {
                         ui.heading("Saved Games");
@@ -399,7 +399,7 @@ async fn main() {
                                                 }
                                                 if reset {
                                                 for i in 0..data.stage.len() {
-                                                        data.stage[i] = Stage::new(i as i32);
+                                                        data.stage[i] = Stage::new(i as i32 +1);
                                                     }
                                                     
                                                 }
@@ -485,12 +485,11 @@ async fn main() {
 
         egui_macroquad::ui(|egui_ctx| {
             let mut unlock = -1;
-
+            egui_ctx.set_pixels_per_point(data.ui_scale);
             data.render(egui_ctx);
 
             let window_id = Id::new("popup selector");
             let mut popup_layer_id = egui::LayerId::new(egui::Order::Foreground, window_id);
-            if data.popup {
                 match egui::Window::new(format!("Build: {}", &data.input_settings.edit_tool.icon()))
                     .collapsible(true)
                     .id(window_id)
@@ -511,7 +510,8 @@ async fn main() {
                                         if s.enabled {
                                             ui.horizontal(|ui| {
                                                 for b in &s.buildings {
-                                                    if ui.small_button(format!("{}", b.symbol())).clicked() {
+                                                    let building = Building::new(b);
+                                                    if ui.small_button(format!("{}", b.symbol())).on_hover_text(format!("{}",building.cost.iter().map(|x| format!("{}{} ",x.0.symbol(), x.1)).collect::<String>())).clicked() {
                                                         data.input_settings.edit_tool = EditTool::Build(Building::new(b));
                                                     }
                                                 }
@@ -729,7 +729,7 @@ async fn main() {
                     },
                     None => {},
 };
-            }
+            
 
             // egui_ctx.move_to_top(popup_layer_id);
 
@@ -780,16 +780,18 @@ async fn main() {
             .order(Order::Foreground)
             .show(egui_ctx, |ui| {
                 ui.group(|ui| {
+                    egui::Frame::default()
+                    .fill(egui::Color32::from_rgb(255, 255, 255))
+                    .show(ui, |ui| {
                 egui::Grid::new("grid")
                                         .show(ui, |ui| {
-
                     let show_full_data = ui.rect_contains_pointer(
                         egui::Rect::from_min_size(
                             egui::Pos2::new(0.0, 0.0),
                             egui::Vec2::new(100.0, 500.0),
                         ),
                     );
-                        
+                    
                     let max_storage = data.resources.get(&Resource::Storage).unwrap_or(&0);
                     let max_cash = data.resources.get(&Resource::CashStorage).unwrap_or(&0);
                     for i in data.resources.iter() {
@@ -814,6 +816,7 @@ async fn main() {
                         }
                     });
                 });
+                });
             });
 
             egui::Area::new("buttons")
@@ -821,13 +824,39 @@ async fn main() {
             .order(Order::Foreground)
             
             .show(egui_ctx, |ui| {
-                ui.horizontal(|ui| {
-                                let tool = ui.heading(&data.input_settings.select_tool.icon());
-                                data.switch_tool_rect = tool.rect;
-                                ui.add_space(10.0);
-                                data.select_building_rect =
-                                ui.heading(&data.input_settings.edit_tool.icon()).rect;
-                                    
+                ui.vertical(|ui| {
+                ui.checkbox(&mut data.popup, format!("{} building menu", &data.input_settings.edit_tool.icon()));
+                let mut planning_mode = data.input_settings.select_tool == SelectTool::Plan;
+                if ui.checkbox(&mut planning_mode, format!("{} Planning Mode", &data.input_settings.select_tool.icon())).clicked() {
+                    data.input_settings.select_tool = match planning_mode {
+                        true => SelectTool::Plan,
+                        false => SelectTool::Add,
+                    };
+                };
+            });
+            });
+
+            egui::Area::new("Right Hand Buttons")
+            .anchor(Align2::RIGHT_BOTTOM, [-30.0,-30.0])
+            .order(Order::Foreground)
+            .show(egui_ctx, |ui| {
+                ui.vertical(|ui| {
+                if ui.button("Home").clicked() {
+                    menu = true;
+                }
+                if ui.add(egui::Button::new("Tutorial").fill(egui::Color32::from_rgb(255,127,80))).clicked() {
+
+                };
+                ui.horizontal(|ui|{
+                    if ui.small_button(egui_phosphor::MAGNIFYING_GLASS_PLUS).clicked() {
+                        data.ui_scale *= 1.05;
+                    }
+                    ui.small(format!("{}%", (data.ui_scale*100.0).round()));
+                    if ui.small_button(egui_phosphor::MAGNIFYING_GLASS_MINUS).clicked() {
+                        data.ui_scale *= 0.95;
+                    };
+                });
+                
             });
             });
 
