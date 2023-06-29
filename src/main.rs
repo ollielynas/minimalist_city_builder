@@ -1,4 +1,6 @@
 
+
+// this bit of code prevents the console window from opening when the program is run in release mode. 
 #![cfg_attr(
   all(
     target_os = "windows",
@@ -9,17 +11,18 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    time::Instant,
+    time::Instant, fmt::{Display, self},
 };
 
 const GLOBAL_VERSION: u32 = 6;
 
 use egui::{
-    self, Align2, Frame, Id, Pos2, TextStyle, Order,
+    self, Align2, Frame, Id, Pos2, TextStyle, Order, emath,
 };
 use egui_macroquad;
 use egui_phosphor;
 use macroquad::prelude::*;
+use egui_toast::{Toasts, Toast, ToastKind, ToastOptions};
 
 extern crate savefile;
 
@@ -36,18 +39,22 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 impl Pos {
+    // this is a function that is used to convert a position into a string for debugging.
     fn to_string(&self) -> String {
         format!("({},{})", self.x, self.y)
     }
     pub fn new<T: Into<i32>>(x:T, y:T) -> Pos {
+        // creates a new position from two numbers. This is used as a shorthand to make creating positions easier.
         Pos { x: x.into(), y: y.into() }
     }
     fn added(&self, other: Pos) -> Pos {
+        // adds two positions together. This is used as a shorthand to make adding two two point vectors together. 
         Pos {
             x: self.x + other.x,
             y: self.y + other.y,
         }
     }
+    /// returns the 4 adjacent tiles and the tile itself
     fn get_adjacent(&self) -> [Pos; 5] {
         [
             self.added(Pos::new(-1, 0)),
@@ -58,6 +65,7 @@ impl Pos {
         ]
     }
 
+    /// this is the equation that calculates how much a piece of land costs to buy. 
     fn cost(&self) -> i32 {
         (self.x.abs().max(self.y.abs()) + 1).pow(3) * 100
     }
@@ -70,6 +78,7 @@ pub enum SelectTool {
 }
 
 impl SelectTool {
+    /// return a relevant icon to represent the state of the tool
     fn icon(&self) -> String {
         (match self {
             SelectTool::Add => egui_phosphor::CURSOR_CLICK,
@@ -86,6 +95,7 @@ pub enum EditTool {
 }
 
 impl EditTool {
+    /// return a relevant icon to represent the state of the tool
     fn icon(&self) -> String {
         (match self {
             EditTool::Build(b) => b.symbol.clone(),
@@ -110,14 +120,29 @@ impl Default for InputSettings {
 }
 
 
-
+// the following functions are used to make the savefile crate work with egui.
+// savefile can take a function name in as a string when deciding in a default file.
+// I cannot implant default for these values myself and so i have these functions that i can call
+// to return a value that can be used in place of the `Default` trait
 fn no_rect() -> egui::Rect {
     egui::Rect::from_min_size(egui::Pos2::new(0.0, 0.0), egui::Vec2::new(0.0, 0.0))
 }
 fn default_float_tuple() -> (f32, f32) {
     (100.0, 100.0)
 }
+/// equivalent of a default implantation value for the `Toasts` struct
+/// this is used to make the `Toasts` struct work with savefile
+fn default_toast() -> Toasts {
+    let mut toasts = Toasts::new()
+    .anchor(egui::Align2::LEFT_BOTTOM, (10.0, 10.0))
+    .direction(egui::Direction::BottomUp);
+    return toasts;
+}
 
+
+
+
+// this struct represents all of the data that is stored in a single game save file.
 #[derive(Savefile)]
 pub struct Data {
     #[savefile_default_val = "Old World"]
@@ -143,8 +168,6 @@ pub struct Data {
     ui_scale: f32,
     game_scale: f32,
 
-
-
     #[savefile_introspect_ignore]
     #[savefile_default_fn = "no_rect"]
     #[savefile_ignore]
@@ -167,9 +190,63 @@ pub struct Data {
     #[savefile_versions = "4.."]
     quick_menu: bool,
 
+    #[savefile_introspect_ignore]
+    #[savefile_default_fn = "default_toast"]
+    #[savefile_ignore]
+    toasts: Toasts,
+
 }
 
 impl Data {
+    /// add a error toast to the screen 
+    /// # Example
+    /// ```
+    /// let mut data = Data::new("test".into());
+    /// data.error("test");
+    /// assert_eq!(data.toasts.added_toasts.len(), 1);
+    /// ```
+    fn error<T>(&mut self, msg: T) where T: std::fmt::Debug {
+
+        self.toasts.add(Toast {
+            text: format!("{:?}", msg).into(),
+            kind: ToastKind::Error,
+            options: ToastOptions::default(),
+        });
+    }
+    /// add a warning toast to the screen 
+    /// # Example
+    /// ```
+    /// let mut data = Data::new("test".into());
+    /// data.warn("test");
+    /// assert_eq!(data.toasts.added_toasts.len(), 1);
+    /// ```
+    fn warn<T>(&mut self, msg: T) where T: std::fmt::Debug {
+        self.toasts.add(Toast {
+            text: format!("{:?}", msg).into(),
+            kind: ToastKind::Warning,
+            options: ToastOptions::default(),
+        });
+    }
+    /// add an info toast to the screen 
+    /// # Example
+    /// ```
+    /// let mut data = Data::new("test".into());
+    /// data.info("test");
+    /// assert_eq!(data.toasts.added_toasts.len(), 1);
+    /// ```
+    fn info<T>(&mut self, msg: T) where T: std::fmt::Debug {
+        self.toasts.add(Toast {
+            text: format!("{:?}", msg).into(),
+            kind: ToastKind::Info,
+            options: ToastOptions::default(),
+        });
+    }
+    /// create a new game save file
+    /// # Example
+    /// ```
+    /// let data = Data::new("test".into());
+    /// assert_eq!(data.name, "test");
+    /// ```
     fn new(name: String) -> Data {
         let mut d = Data {
             name,
@@ -182,17 +259,19 @@ impl Data {
                 egui::Pos2::new(0.0, 0.0),
                 egui::Vec2::new(0.0, 0.0),
             ),
-            ui_scale: 1.0,
+            ui_scale: 2.0,
             game_scale: 1.0,
             new_pos: vec![Pos::new(0, 0)],
             tiles: HashMap::new(),
             input_settings: InputSettings {
                 select_tool: SelectTool::Add,
+                // the default thing to build is a house
                 edit_tool: EditTool::Build(Building::new(&BuildingType::House)),
+                
             },
             screen_offset: (100.0, 100.0),
             resources: HashMap::new(),
-            stage: [
+            stage: [// all stages start out locked
                 Stage::new(1),
                 Stage::new(2),
                 Stage::new(3),
@@ -202,10 +281,13 @@ impl Data {
             ],
             popup: false,
             popup_hover: false,
+            toasts: default_toast(),
         };
         for r in Resource::iter() {
             d.resources.insert(r, 0);
         }
+
+        // give the player just enough resources to build a house and some farmland. 
         d.resources.insert(Resource::Seed, 10);
         d.resources.insert(Resource::Food, 10);
         d.resources.insert(Resource::Wood, 10);
@@ -214,9 +296,10 @@ impl Data {
             .insert(Pos { x: 0, y: 0 }, Tile::new(Pos { x: 0, y: 0 }));
         d.update_new_pos();
 
-        d
+        return d
     }
 
+    /// calculates what which buildings have changed and updates them and their neighbors. 
     fn update_new_pos(&mut self) {
         let mut tiles: HashSet<Pos> = HashSet::new();
         let mut new_tiles: HashSet<Pos> = HashSet::new();
@@ -228,11 +311,11 @@ impl Data {
         }
         self.new_pos = new_tiles.difference(&tiles).cloned().collect();
     }
-
+    /// add a building to the land tile
     fn add_buildings(&mut self, pos: [Pos; 5]) {
         let mut new_hash = HashMap::new();
 
-        for p in pos {
+        for p in pos {// iter over all new positions
             if let Some(b) = self.tiles.get(&p) {
                 for i in &b.buildings {
                     new_hash.insert(i.0.clone(), new_hash.get(&i.0).unwrap_or(&0) + i.1);
@@ -244,13 +327,13 @@ impl Data {
             b.neighbors_buildings = new_hash;
         }
     }
-
+    /// renders the current savefile using egui
     fn render(&mut self, egui_ctx: &egui::Context) {
         let mut update_adjacent: Option<Pos> = None;
 
-        
-
+    
         for i in &mut self.tiles {
+            // check if land tile should be rendered by 
             if egui_ctx.screen_rect().contains(egui::Pos2::new(
                 self.screen_offset.0 + (i.0.x as f32) * 202.0,
                 self.screen_offset.1 + (i.0.y as f32) * 202.0,
@@ -340,6 +423,10 @@ async fn main() {
     let mut per_sec:HashMap<Resource, i32> = HashMap::new();
     let mut data = Data::new("".to_owned());
     let mut menu = true;
+
+
+    
+
     match savefile::load_file::<Data, &str>("game_instance.bin", GLOBAL_VERSION) {
         Ok(d) => {
             // create new folder called game files and then move the file "game_instance.bin" into it
@@ -347,18 +434,22 @@ async fn main() {
             savefile::save_file("saves/game_instanceOld World.bin", GLOBAL_VERSION, &d).unwrap();
         }
         Err(e) => {
-            println!("{e}")
+            // display an error message if a file could not be loaded
+            data.error(e);
         }
     };
     let mut og_ppp = 0.0;
     println!("Test 3");
 
     egui_macroquad::ui(|egui_ctx| {
+        //load the phosphor icon font
         let mut fonts = egui::FontDefinitions::default();
         egui_phosphor::add_to_fonts(&mut fonts);
         egui_ctx.set_fonts(fonts);
+        // set to light mode
         egui_ctx.set_visuals(egui::Visuals::light());
         let mut style = (*egui_ctx.style()).clone();
+        // set the default font to monospace
         style.override_text_style = Some(TextStyle::Monospace);
     });
 
@@ -368,22 +459,25 @@ async fn main() {
 
     let mut process = Instant::now();
     loop {
+
         clear_background(WHITE);
         let mut hover_text: Option<String> = None;
-        if menu {
+        if menu {// render the menu if the menu is open
             egui_macroquad::ui(|egui_ctx| {
+                // set the ui scale to the ui scale in the data struct    
                 egui_ctx.set_pixels_per_point(data.ui_scale);
                 egui::SidePanel::right("Right side").show(egui_ctx, |ui| {
+                    // check if the "saves/" directory exists. then try to get all teh file within the directory. if it fails then display an error message
                     if let Ok(files) = std::fs::read_dir("saves/") {
-                        ui.heading("Saved Games");
                         
+                        ui.heading("Saved Games");
                         ui.separator();
                         egui::ScrollArea::vertical().show(ui, |ui| {
-                        for f in files {
+                        for f in files {// display a list of all the files. 
                             let f = match f {Ok(f) => f, _ => {continue;}};
                             if f.file_type().unwrap().is_file() {
-                                
-                                ui.add(egui::widgets::Button::new(f.file_name().to_str().unwrap()))
+                                // display file name and a button to load the file
+                                ui.add(egui::widgets::Button::new(f.file_name().to_str().unwrap().replace(".bin","").replace("game_instance_"," ")))
                                     .clicked()
                                     .then(|| {
                                         match  savefile::load_file::<Data, &str>(
@@ -398,16 +492,14 @@ async fn main() {
                                                     }
                                                 }
                                                 if reset {
-                                                for i in 0..data.stage.len() {
+                                                    for i in 0..data.stage.len() {
                                                         data.stage[i] = Stage::new(i as i32 +1);
                                                     }
                                                     
                                                 }
                                                 menu = false;
                                             }
-                                            Err(e) => {
-                                                println!("{:?}", e);
-                                            }
+                                            Err(e) => data.error(e),
                                         }
                                         
                                     });
@@ -426,7 +518,6 @@ async fn main() {
                         ui.add(egui::widgets::TextEdit::singleline(&mut data.name)
                             .hint_text("New Game Name")
                             .cursor_at_end(true)
-                            
                         );
                             
                         
@@ -439,24 +530,27 @@ async fn main() {
                         
                     });
                 });
+                data.toasts.show(egui_ctx);
             });
             egui_macroquad::draw();
 
             next_frame().await;
+            // continue to prevent the game from rendering before the user has exited the menu
             continue;
+            
         }
-
+        // if the menu is not open then instead render the game
 
         if !data.popup {
             data.popup_hover = false;
         }
-
+        // save teh game every three seconds and also precess the resources that the 
         if process.elapsed().as_secs() >= 3 {
             let filename = format!("saves/game_instance_{}.bin", data.name);
             process = Instant::now();
             let mut storage = 100;
             let mut cash_storage = 0;
-            for i in &mut data.tiles {
+            for i in &mut data.tiles {// iterate through all the tiles and process the storage and cash storage
                 (storage, cash_storage) = i.1.process_storage(storage, cash_storage);
             }
             per_sec.clear();
@@ -477,14 +571,13 @@ async fn main() {
             }
             match savefile::save_file(&filename, GLOBAL_VERSION, &data) {
                 Ok(_) => {}
-                Err(e) => {
-                    println!("{:?}", e);
-                }
+                Err(e) => data.error(e),
             }
         }
-
+        
         egui_macroquad::ui(|egui_ctx| {
             let mut unlock = -1;
+            
             egui_ctx.set_pixels_per_point(data.ui_scale);
             data.render(egui_ctx);
 
@@ -496,10 +589,8 @@ async fn main() {
                     .open(&mut data.popup)
                     .scroll2([false, true])
                     .show(egui_ctx, |ui| {
-                        // egui_ctx.move_to_top(ui.layer_id());
 
-                        ui
-                            .vertical(|ui| {
+                        ui.vertical(|ui| {
                                 ui.checkbox(&mut data.quick_menu, "Quick Menu");
                                 if data.quick_menu {
                                     ui.small_button("Remove").clicked().then(|| {
@@ -517,6 +608,7 @@ async fn main() {
                                                 }
                                             });
                                         } else {
+                                            // show a lock symbol and a button to unlock it if the user hasn't reached the checkpoint to unlock it
                                             ui.small_button(format!("{} unlock early", egui_phosphor::LOCK)).clicked().then(|| {
                                                 s.enabled = true;
                                             });
@@ -528,6 +620,7 @@ async fn main() {
                                         data.input_settings.edit_tool = EditTool::Remove;
                                     }
                                 popup_layer_id = ui.layer_id();
+                                // iter over them stages and display them
                                 for i in &data.stage {
                                     if i.enabled {
                                         ui.heading(format!(
@@ -557,13 +650,7 @@ async fn main() {
                                                                 + &building
                                                                     .cost
                                                                     .iter()
-                                                                    .map(|x| {
-                                                                        format!(
-                                                                            "{} {},",
-                                                                            x.0.symbol(),
-                                                                            x.1
-                                                                        )
-                                                                    })
+                                                                    .map(|x| {format!("{} {},",x.0.symbol(),x.1)})
                                                                     .collect::<String>(),
                                                         )
                                                         .id_source(j.name() + "cost" + &i.title)
@@ -859,43 +946,10 @@ async fn main() {
                 
             });
             });
-
+            data.toasts.show(egui_ctx);
         });
         egui_macroquad::draw();
 
-        // egui_macroquad::ui(|egui_ctx| {
-
-        //     egui::SidePanel::left("side_panel")
-        //         .frame(Frame::none().inner_margin(10.0))
-        //         .resizable(false)
-        //         .show_separator_line(false)
-        //         .show(egui_ctx, |ui| {
-
-        //             egui::Window::new("Controls")
-        //                 .anchor(Align2::LEFT_BOTTOM, egui::Vec2 { x: 30.0, y: 30.0 })
-        //                 .frame(Frame::none())
-        //                 .title_bar(false)
-        //                 .default_pos(egui::Pos2::new(00.0, 30.0))
-        //                 .constrain(true)
-        //                 .movable(false)
-        //                 .auto_sized()
-        //                 .show(egui_ctx, |ui| {
-        //                     ui.horizontal(|ui| {
-        //                         let tool = ui.heading(&data.input_settings.select_tool.icon());
-        //                         data.switch_tool_rect = tool.rect;
-        //                         ui.add_space(10.0);
-        //                         data.select_building_rect =
-        //                             ui.heading(&data.input_settings.edit_tool.icon()).rect;
-                                    
-        //                     });
-
-        //                     ui.add_space(30.0);
-        //                 });
-        //         });
-        // });
-        // egui_macroquad::draw();
-
-        // check if in dev mode
         #[cfg(debug_assertions)]
         {
             draw_text("debug build", 10.0, 10.0, 15.0, BLACK);

@@ -14,11 +14,15 @@ pub struct Stage {
     pub enabled: bool,
     pub unlock_at: Vec<(Resource, i32)>
 }
-
 impl Stage {
-
     pub fn no_stages() -> i32 {6}
-    
+
+    /// creates a new stage based on a `i32` number. returns an empty stage if the number is not valid
+    /// # Example
+    /// ```
+    /// let stage = Stage::new(1);
+    /// assert_eq!(stage.num, 1);
+    /// ```
     pub fn new(num: i32) -> Stage {
         Stage {
             num,
@@ -80,6 +84,7 @@ impl Stage {
                 3 => "The industrial revolution has arrived!. Factories can be used to operate a wide range of things, including steel mills and power plants.".to_owned(),
                 4 => "Build a basic research facility, a concrete mixer, a gauge, and an asphalt plant.".to_owned(),
                 5 => "Expand into a city, with asphalt instep of icky dirt (hint everything in a city needs road access)".to_owned(),
+                6 => "TODO".to_owned(),
                 a => format!("stage {a} has no description"),
             },
             title: match num {
@@ -88,6 +93,7 @@ impl Stage {
                 3 => "Industrial Revolution".to_owned(),
                 4 => "Research".to_owned(),
                 5 => "City".to_owned(),
+                6 => "TODO".to_owned(),
                 a => format!("stage {a} has no title"),
             },
             enabled: num == 1,
@@ -191,7 +197,12 @@ impl BuildingType {
 
         }.to_owned()
     }
-
+    /// returns the name of the building
+    /// # Example
+    /// ```
+    /// let name = BuildingType::House.name();
+    /// assert_eq!(name, "House");
+    /// ```
     pub fn name(&self) -> String {
         match self {
             Apartment => "Apartment",
@@ -234,6 +245,12 @@ impl BuildingType {
 
         }.to_owned()
     }
+    /// returns the output of the building as a vector of tuples
+    /// # Example
+    /// ```
+    /// let output = BuildingType::House.output();
+    /// assert_eq!(output, vec![(Resource::PlaceholderResource, 0)]);
+    /// ```
 
     pub fn output(&self) -> Vec<(Resource, i32)> {
         match self {
@@ -257,9 +274,8 @@ impl BuildingType {
             |PoliceStation
             |Hospital
             |Factory
-             => vec![],
+            => vec![],// the following buildings have no output
             FoodTruck => vec![(Resource::Tax, 25)],
-
             Lightning
             |AirTrafficControl
             |Runway
@@ -280,10 +296,58 @@ impl BuildingType {
             
         }
     }
+    /// returns the cost of the building as a vector of tuples
+    /// # Example
+    /// ```
+    /// let cost = BuildingType::House.cost();
+    /// assert_eq!(cost, vec![(Resource::Wood, 10), (Resource::Food, 10)]);
+    /// ```
+    pub fn cost(&self) -> Vec<(Resource, i32)> {
+        let cost = match self {
+            Carrot => vec![(Resource::Seed, 50)],
+            Asphalt => vec![(Resource::Concrete, 1)],
+            Apartment => vec![(Resource::Food, 1), (Resource::Concrete, 50), (Resource::Steel, 10)],
+            Shop => vec![(Resource::Wood, 50), (Resource::Food, 50)],
+            Ground => vec![],
+            House => vec![(Resource::Wood, 10), (Resource::Food, 10)],
+            Grain|Tree => vec![(Resource::Seed, 5)],
+            Warehouse => vec![(Resource::Wood, 100)],
+            Battery => vec![(Resource::Steel, 20), (Resource::Food, 200)],
+            Factory => vec![(Resource::Wood, 100), (Resource::Food, 100), (Resource::Seed, 100)], // placeholder
+            SteelProduction => vec![(Resource::Wood, 150)],
+            Bank => vec![(Resource::Wood, 200), (Resource::Food, 200), (Resource::Steel, 30), (Resource::Tax, 300)],
+            BasicResearchFacility => vec![(Resource::Wood, 100), (Resource::Food, 100), (Resource::Seed, 100), (Resource::Steel, 100)],
+            ConcreteMixer => vec![(Resource::Steel, 100), (Resource::BasicScience, 100)],
+            Gauge => vec![(Resource::Steel, 50), (Resource::BasicScience, 300)],
+            FireStation => vec![(Resource::Concrete, 500), (Resource::Steel, 20)],
+            Hospital => vec![(Resource::Concrete, 1000), (Resource::Food, 1500), (Resource::BasicScience, 50)],
+            PoliceStation => vec![(Resource::Concrete, 500), (Resource::Food, 500)],
+            FoodTruck => vec![(Resource::Food, 5000), (Resource::Wood, 1000)],
+            Siren
+            |LightHouse
+            |Lightning
+            |AirTrafficControl
+            |Runway
+            |Cpu
+            |StairsIntoTheVoid
+            |Garage
+            |Lightbulb
+            |Mosque
+            |NuclearPowerPlant
+            |Rocket
+            |RobotFactory
+            |Cookie
+            |Database
+            |PalmTree
+            |Turret
+            => vec![(Resource::PlaceholderResource, 0)],
+        };
+        return cost
+    }
 }
 
 
-
+// list of all resources that a building can output
 #[derive(PartialEq, Eq, Hash, Copy, Clone, EnumIter, Savefile)]
 pub enum Resource {
     Food,
@@ -300,6 +364,13 @@ pub enum Resource {
 }
 
 impl Resource {
+    /// returns the symbol of the resource
+    /// # Example
+    /// ```
+    /// let symbol = Resource::Food.symbol();
+    /// assert_eq!(symbol, egui_phosphor::HAMBURGER);
+    /// ```
+
     pub fn symbol(&self) -> String {
         match self {
             Resource::Food => egui_phosphor::HAMBURGER,
@@ -315,6 +386,13 @@ impl Resource {
             Resource::PlaceholderResource => egui_phosphor::PLACEHOLDER,
         }.to_owned()
     }
+    /// returns the name of the resource
+    /// # Example
+    /// ```
+    /// let name = Resource::Food.name();
+    /// assert_eq!(name, "Food");
+    /// ```
+
     pub fn name(&self) -> String {
         match self {
             Resource::Food => "Food",
@@ -347,6 +425,7 @@ pub struct Building {
 
 
 impl Default for Building {
+    /// the default value for a building is `BuildingType::Ground`
     fn default() -> Self {
         Building::new(&BuildingType::Ground)
     }
@@ -355,8 +434,15 @@ impl Default for Building {
 
 
 impl Building {
-    pub fn new(building_type: &BuildingType) -> Building {
+    /// create a new `Building` from a reference to a `BuildingType`
+    /// # Example
+    /// ```
+    /// let building = Building::new(&BuildingType::House);
+    /// assert_eq!(building.building_type, BuildingType::House);
+    /// assert_eq!(building.cost, vec![(Resource::Wood, 10), (Resource::Food, 10)]);
+    /// ```
 
+    pub fn new(building_type: &BuildingType) -> Building {
         let mut required_adj = Vec::new();
         if [Battery, SteelProduction, ConcreteMixer].contains(&building_type) {required_adj.push(Factory)} // must be next to factory
         if [ConcreteMixer].contains(&building_type) {required_adj.push(Gauge)}
@@ -365,7 +451,7 @@ impl Building {
         
 
 
-
+        // these buildings can all be next to each other. I use this to make this process easer and less repetitive. 
         let city_tiles = [Bank, FireStation, PoliceStation, Hospital, Apartment, FoodTruck, Cpu];
 
         let mut optional_adj = Vec::new();
@@ -373,6 +459,7 @@ impl Building {
 
         if ![].contains(&building_type) {optional_adj.push(*building_type)} // cannot be next to self
 
+        // if two buildings should be valid nex to each other than they can be put as a tuple here. 
         for i in [
             (Warehouse, Shop),
             (Battery, Factory),
@@ -387,7 +474,7 @@ impl Building {
             if &i.1 == building_type {optional_adj.push(i.0)}
         }
 
-        // city tiles 
+        // implement the logic for all city tiles. 
         if city_tiles.contains(&building_type) {
             for i in city_tiles.iter() {
                 optional_adj.push(*i)
@@ -398,13 +485,13 @@ impl Building {
             optional_adj.append(city_tiles.to_vec().as_mut())
         }
 
+        // this list is a subset of the city tiles. it contains all the tiles that can produce resources.
+        // this is useful because all of these buildings need to have access to an apartment building. 
         let production_city_tiles = [Bank, FoodTruck, Cpu];
 
-        
+    
 
-
-
-
+    
         let mut tile_adj = match building_type { // mut be within one tile of:
             Shop => vec![Grain, House, Tree],
             Grain|Tree|Carrot => vec![House],
@@ -445,46 +532,8 @@ impl Building {
         if production_city_tiles.contains(&building_type) {
             tile_adj.push(Apartment)
         }
-
-        let cost = match building_type {
-            Carrot => vec![(Resource::Seed, 50)],
-            Asphalt => vec![(Resource::Concrete, 1)],
-            Apartment => vec![(Resource::Food, 1), (Resource::Concrete, 50), (Resource::Steel, 10)],
-            Shop => vec![(Resource::Wood, 50), (Resource::Food, 50)],
-            Ground => vec![],
-            House => vec![(Resource::Wood, 10), (Resource::Food, 10)],
-            Grain|Tree => vec![(Resource::Seed, 5)],
-            Warehouse => vec![(Resource::Wood, 100)],
-            Battery => vec![(Resource::Steel, 20), (Resource::Food, 200)],
-            Factory => vec![(Resource::Wood, 100), (Resource::Food, 100), (Resource::Seed, 100)], // placeholder
-            SteelProduction => vec![(Resource::Wood, 150)],
-            Bank => vec![(Resource::Wood, 200), (Resource::Food, 200), (Resource::Steel, 30), (Resource::Tax, 300)],
-            BasicResearchFacility => vec![(Resource::Wood, 100), (Resource::Food, 100), (Resource::Seed, 100), (Resource::Steel, 100)],
-            ConcreteMixer => vec![(Resource::Steel, 100), (Resource::BasicScience, 100)],
-            Gauge => vec![(Resource::Steel, 50), (Resource::BasicScience, 300)],
-            FireStation => vec![(Resource::Concrete, 500), (Resource::Steel, 20)],
-            Hospital => vec![(Resource::Concrete, 1000), (Resource::Food, 1500), (Resource::BasicScience, 50)],
-            PoliceStation => vec![(Resource::Concrete, 500), (Resource::Food, 500)],
-            FoodTruck => vec![(Resource::Food, 2000), (Resource::Wood, 700)],
-            Siren
-            |LightHouse
-            |Lightning
-            |AirTrafficControl
-            |Runway
-            |Cpu
-            |StairsIntoTheVoid
-            |Garage
-            |Lightbulb
-            |Mosque
-            |NuclearPowerPlant
-            |Rocket
-            |RobotFactory
-            |Cookie
-            |Database
-            |PalmTree
-            |Turret
-            => vec![(Resource::PlaceholderResource, 0)],
-        };
+        
+        
 
 
 
@@ -493,36 +542,12 @@ impl Building {
             required_adj,
             optional_adj,
             tile_adj,
-            cost,
+            cost: building_type.cost(),
             symbol: building_type.symbol(),
         }
     }
 
-    // fn from_symbol(b:String) -> BuildingType {
-    //     match b {
-    //         Ground => "  ",
-    //         Apartment => egui_phosphor::BUILDINGS,
-    //         Tree => egui_phosphor::TREE,
-    //         House => egui_phosphor::HOUSE,
-    //         Grain => egui_phosphor::GRAINS,
-    //         Shop => egui_phosphor::STOREFRONT,
-    //         Warehouse => egui_phosphor::WAREHOUSE,
-    //         Battery => egui_phosphor::BATTERY_CHARGING_VERTICAL,
-    //         Factory => egui_phosphor::FACTORY,
-    //         SteelProduction => egui_phosphor::BARCODE,
-    //         Bank => egui_phosphor::BANK,
-    //         BasicResearchFacility => egui_phosphor::CIRCUITRY,
-    //         ConcreteMixer => egui_phosphor::HOURGLASS_MEDIUM,
-    //         Gauge => egui_phosphor::GAUGE,
-    //         Asphalt => egui_phosphor::SQUARE,
-    //         FireStation => egui_phosphor::FIRE_EXTINGUISHER,
-    //         PoliceStation => egui_phosphor::POLICE_CAR,
-    //         Hospital => egui_phosphor::FIRST_AID_KIT,
-    //         FoodTruck => egui_phosphor::VAN,
 
-    //         // invert above match statement
-
-    //         "  ".to => Ground,
 
 
 
