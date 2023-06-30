@@ -435,7 +435,7 @@ async fn main() {
         }
         Err(e) => {
             // display an error message if a file could not be loaded
-            data.error(e);
+            // data.error(e);
         }
     };
     let mut og_ppp = 0.0;
@@ -499,7 +499,9 @@ async fn main() {
                                                 }
                                                 menu = false;
                                             }
-                                            Err(e) => data.error(e),
+                                            Err(e) => {
+                                                data.error(e)
+                                            },
                                         }
                                         
                                     });
@@ -512,24 +514,19 @@ async fn main() {
                 });
 
                 egui::CentralPanel::default().show(egui_ctx, |ui| {
-                    ui.heading("Welcome to the game!");
-                    
-                    ui.horizontal(|ui| {
+                    ui.heading("Mini City");
+                        
+                        ui.small("To start a new game, type the name of your new city in the box below and click the button to start.");
+                        
                         ui.add(egui::widgets::TextEdit::singleline(&mut data.name)
                             .hint_text("New Game Name")
                             .cursor_at_end(true)
+                            .clip_text(false)
+                            .desired_width(140.0)
                         );
-                            
-                        
-                        if data.name != "".to_owned() && ui.add(egui::widgets::Button::new("New Game"))
-                            .clicked()
-                            {
-                                menu = false;
-                            }
-                        
-                        
-                    });
-                });
+                        if data.name != "".to_owned() && ui.add(egui::widgets::Button::new(format!("Create New City:\"{}\"", data.name)))
+                            .clicked(){menu = false;}
+            });
                 data.toasts.show(egui_ctx);
             });
             egui_macroquad::draw();

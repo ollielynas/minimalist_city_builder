@@ -16,6 +16,7 @@ pub struct Pos {
 }
 
 impl Default for Pos {
+    /// defeats to `(0,0)`
     fn default() -> Self {
         Pos { x: 0, y: 0 }
     }
@@ -37,6 +38,7 @@ pub struct Tile {
 }
 
 impl Tile {
+    /// create a new blank land tile at the specified position
     pub fn new(coord: Pos) -> Tile {
         let land: [[Building; 8]; 8] = Default::default();
         Tile {
@@ -48,7 +50,7 @@ impl Tile {
             neighbors_buildings: HashMap::new(),
         }
     }
-
+    /// calculate the max amount of resources that the player is able to store, with a different number for cash storage.  
     pub fn process_storage(&self, mut storage: i32, mut cash_storage: i32) -> (i32, i32) {
         for i in &self.buildings {
             for n in i.0.output() {
@@ -62,6 +64,7 @@ impl Tile {
         return (storage, cash_storage);
     }
 
+    /// calculate the new number of resources that the player has each game tick (every 3 to 4 seconds)
     pub fn processes_resources(
         &self,
         res: &mut HashMap<Resource, i32>,
@@ -85,6 +88,8 @@ impl Tile {
         }
     }
 
+
+    /// calculate the new number of resources that the player has each game tick
     fn update_count(&mut self, resources: &mut HashMap<Resource, i32>) {
         self.buildings.clear();
         for i in self.land.iter() {
@@ -112,7 +117,7 @@ impl Tile {
 
         
     }
-
+    /// cheeack if a building is valid at a certain position
     pub fn is_valid(&self, i: Pos, new_building: &Building) -> bool {
         if new_building.building_type == BuildingType::Ground {
             return true;
