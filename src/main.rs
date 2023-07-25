@@ -111,6 +111,7 @@ pub struct InputSettings {
 }
 
 impl Default for InputSettings {
+    /// default value is `House`
     fn default() -> Self {
         InputSettings {
             select_tool: SelectTool::Add,
@@ -415,7 +416,7 @@ impl Data {
 async fn main() {
 
 
-
+ 
     
 
     let mut stats = false;
@@ -528,6 +529,9 @@ async fn main() {
                             .clicked(){menu = false;}
             });
                 data.toasts.show(egui_ctx);
+
+
+                
             });
             egui_macroquad::draw();
 
@@ -595,8 +599,7 @@ async fn main() {
                                     });
                                     for s in data.stage.iter_mut() {
                                         ui.separator();
-                                        if s.enabled {
-                                            ui.horizontal(|ui| {
+                                        if s.enabled { ui.horizontal(|ui| {
                                                 for b in &s.buildings {
                                                     let building = Building::new(b);
                                                     if ui.small_button(format!("{}", b.symbol())).on_hover_text(format!("{}",building.cost.iter().map(|x| format!("{}{} ",x.0.symbol(), x.1)).collect::<String>())).clicked() {
@@ -606,13 +609,10 @@ async fn main() {
                                             });
                                         } else {
                                             // show a lock symbol and a button to unlock it if the user hasn't reached the checkpoint to unlock it
-                                            ui.small_button(format!("{} unlock early", egui_phosphor::LOCK)).clicked().then(|| {
-                                                s.enabled = true;
-                                            });
+                                            ui.small_button(format!("{} unlock early", egui_phosphor::LOCK)).clicked().then(|| {s.enabled = true;});
                                         }
                                     }
                                 }else{
-                            
                                     if ui.small_button("Delete").clicked() {
                                         data.input_settings.edit_tool = EditTool::Remove;
                                     }
@@ -629,13 +629,8 @@ async fn main() {
                                             for j in &i.buildings {
                                                 let building = Building::new(j);
                                                 if ui
-                                                    .small_button(format!(
-                                                        "{} {}",
-                                                        j.symbol(),
-                                                        j.name()
-                                                    ))
-                                                    .clicked()
-                                                {
+                                                    .small_button(format!("{} {}",j.symbol(),j.name()))
+                                                    .clicked(){
                                                     data.input_settings.edit_tool =
                                                         EditTool::Build(Building::new(j));
                                                 }
@@ -648,8 +643,7 @@ async fn main() {
                                                                     .cost
                                                                     .iter()
                                                                     .map(|x| {format!("{} {},",x.0.symbol(),x.1)})
-                                                                    .collect::<String>(),
-                                                        )
+                                                                    .collect::<String>())
                                                         .id_source(j.name() + "cost" + &i.title)
                                                         .show(ui, |ui| {
                                                             for k in building.cost.iter() {
@@ -666,13 +660,7 @@ async fn main() {
                                                                 "Output ".to_owned()
                                                                     + &j.output()
                                                                         .iter()
-                                                                        .map(|x| {
-                                                                            format!(
-                                                                                "{} {},",
-                                                                                x.0.symbol(),
-                                                                                x.1
-                                                                            )
-                                                                        })
+                                                                        .map(|x| {format!("{} {},",x.0.symbol(),x.1)})
                                                                         .collect::<String>(),
                                                             )
                                                             .id_source(
@@ -927,6 +915,7 @@ async fn main() {
                 ui.vertical(|ui| {
                 if ui.button("Home").clicked() {
                     menu = true;
+                    data = Data::new("".to_owned());
                 }
                 if ui.add(egui::Button::new("Tutorial").fill(egui::Color32::from_rgb(255,127,80))).clicked() {
 
@@ -944,7 +933,11 @@ async fn main() {
             });
             });
             data.toasts.show(egui_ctx);
+
+            
         });
+
+        
         egui_macroquad::draw();
 
         #[cfg(debug_assertions)]
@@ -953,6 +946,7 @@ async fn main() {
             draw_text(&format!("fps: {}", get_fps()), 30.0, 30.0, 20.0, RED);
             
         }
+        
 
         next_frame().await;
     }

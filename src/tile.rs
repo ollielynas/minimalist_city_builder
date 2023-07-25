@@ -117,7 +117,7 @@ impl Tile {
 
         
     }
-    /// cheeack if a building is valid at a certain position
+    /// check if a building is valid at a certain position
     pub fn is_valid(&self, i: Pos, new_building: &Building) -> bool {
         if new_building.building_type == BuildingType::Ground {
             return true;
@@ -146,6 +146,7 @@ impl Tile {
         return true;
     }
 
+    /// return the tile as a string
     pub fn to_string(&self) -> String {
         let mut string = String::new();
         for i in &self.land {
@@ -169,6 +170,7 @@ impl Tile {
         let mut set_buildings: Vec<(Pos, Building)> = vec![];
 
         let mut s = false;
+
         
 
         let window_rect = egui::Rect::from_min_size(
@@ -204,24 +206,23 @@ impl Tile {
                     
                     
                     
-                    
-                    if self.summary || s {
-                    ui.checkbox(&mut self.summary, "Better Performance");
+                if false && (self.summary || s) {
+                //     ui.checkbox(&mut self.summary, "Better Performance");
                 
-                        egui::Grid::new("grid")
-                        .max_col_width(202.0)
-                        .min_col_width(202.0)
+                //         egui::Grid::new("grid")
+                //         .max_col_width(202.0)
+                //         .min_col_width(202.0)
                         
-                        .show(ui, |ui| {
+                //         .show(ui, |ui| {
                     
-                    for i in self.buildings.iter() {
-                        if i.0 == &BuildingType::Ground {
-                            continue;
-                        }
-                        ui.label(format!("{}: {}", i.0.symbol(), i.1));
-                        ui.end_row();
+                //     for i in self.buildings.iter() {
+                //         if i.0 == &BuildingType::Ground {
+                //             continue;
+                //         }
+                //         ui.label(format!("{}: {}", i.0.symbol(), i.1));
+                //         ui.end_row();
                     
-                }});
+                // }});
                 
                 }{
 
@@ -260,14 +261,18 @@ impl Tile {
                             }
                     }
                 }
+
+
                 for i in 0..8 {
                     ui.horizontal(|ui| {
                         for j in 0..8 {
 
-
+                            let rich_text = egui::RichText::new(&self.land[i][j].symbol).to_owned();
                             
+
+
                             if !hover {
-                                let response = ui.add_sized([25.0,25.0], egui::Label::new(&self.land[i][j].symbol));
+                                let response = ui.add_sized([25.0,25.0], egui::Label::new(rich_text));
                                 
                                 if let Some(b) = self.planned.get(&Pos {
                                     x: i as i32,
@@ -279,6 +284,7 @@ impl Tile {
                                             egui::RichText::new(&b.symbol()).weak().to_owned(),
                                         ),
                                     );
+
     
                                     set_buildings.push((
                                         Pos {
@@ -292,7 +298,7 @@ impl Tile {
                             }
                             let text = &self.land[i][j].symbol.to_owned();
 
-                            let square = egui::Button::new(&self.land[i][j].symbol)
+                            let square = egui::Button::new(rich_text)
                             
                                 .stroke(egui::Stroke::new(
                                     1.0,

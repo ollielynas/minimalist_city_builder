@@ -6,6 +6,7 @@ use strum::IntoEnumIterator;
 
 #[derive(Savefile)]
 
+
 pub struct Stage {
     pub num: i32,
     pub buildings: Vec<BuildingType>,
@@ -15,6 +16,8 @@ pub struct Stage {
     pub unlock_at: Vec<(Resource, i32)>
 }
 impl Stage {
+
+    /// the number of currently implemented stages
     pub fn no_stages() -> i32 {6}
 
     /// creates a new stage based on a `i32` number. returns an empty stage if the number is not valid
@@ -455,7 +458,6 @@ impl Building {
         let city_tiles = [Bank, FireStation, PoliceStation, Hospital, Apartment, FoodTruck, Cpu];
 
         let mut optional_adj = Vec::new();
-        if ![BasicResearchFacility].contains(&building_type)  {optional_adj.push(Ground)} // cannot be next to ground
 
         if ![].contains(&building_type) {optional_adj.push(*building_type)} // cannot be next to self
 
@@ -495,7 +497,7 @@ impl Building {
         let mut tile_adj = match building_type { // mut be within one tile of:
             Shop => vec![Grain, House, Tree],
             Grain|Tree|Carrot => vec![House],
-            Factory => vec![Warehouse],
+            Factory => vec![],
             Apartment => vec![FireStation, Hospital, PoliceStation],
             Ground|House|Warehouse|Battery|SteelProduction => Vec::new(),
             BasicResearchFacility
@@ -524,8 +526,6 @@ impl Building {
             |Database
             |PalmTree
             |Turret
-
-
             => vec![],
         };
 
