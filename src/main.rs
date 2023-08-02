@@ -14,6 +14,8 @@ use std::{
     time::Instant, fmt::{Display, self},
 };
 
+use serde_json;
+
 const GLOBAL_VERSION: u32 = 6;
 
 use egui::{
@@ -31,9 +33,11 @@ extern crate savefile_derive;
 
 mod building;
 mod tile;
+mod guide;
 
 use building::*;
 use tile::*;
+use guide::*;
 
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -196,6 +200,9 @@ pub struct Data {
     #[savefile_ignore]
     toasts: Toasts,
 
+    #[savefile_ignore]
+    guide: bool,
+
 }
 
 impl Data {
@@ -251,6 +258,7 @@ impl Data {
     fn new(name: String) -> Data {
         let mut d = Data {
             name,
+            guide: false,
             quick_menu: false,
             switch_tool_rect: egui::Rect::from_min_size(
                 egui::Pos2::new(0.0, 0.0),
@@ -260,7 +268,7 @@ impl Data {
                 egui::Pos2::new(0.0, 0.0),
                 egui::Vec2::new(0.0, 0.0),
             ),
-            ui_scale: 2.0,
+            ui_scale: 1.3,
             game_scale: 1.0,
             new_pos: vec![Pos::new(0, 0)],
             tiles: HashMap::new(),
@@ -419,7 +427,6 @@ async fn main() {
  
     
 
-    let mut stats = false;
 
     let mut per_sec:HashMap<Resource, i32> = HashMap::new();
     let mut data = Data::new("".to_owned());
@@ -591,207 +598,205 @@ async fn main() {
                     .scroll2([false, true])
                     .show(egui_ctx, |ui| {
 
-                        ui.vertical(|ui| {
-                                ui.checkbox(&mut data.quick_menu, "Quick Menu");
-                                if data.quick_menu {
-                                    ui.small_button("Remove").clicked().then(|| {
-                                        data.input_settings.edit_tool = EditTool::Remove;
-                                    });
-                                    for s in data.stage.iter_mut() {
-                                        ui.separator();
-                                        if s.enabled { ui.horizontal(|ui| {
-                                                for b in &s.buildings {
-                                                    let building = Building::new(b);
-                                                    if ui.small_button(format!("{}", b.symbol())).on_hover_text(format!("{}",building.cost.iter().map(|x| format!("{}{} ",x.0.symbol(), x.1)).collect::<String>())).clicked() {
-                                                        data.input_settings.edit_tool = EditTool::Build(Building::new(b));
-                                                    }
-                                                }
-                                            });
-                                        } else {
-                                            // show a lock symbol and a button to unlock it if the user hasn't reached the checkpoint to unlock it
-                                            ui.small_button(format!("{} unlock early", egui_phosphor::LOCK)).clicked().then(|| {s.enabled = true;});
-                                        }
-                                    }
-                                }else{
-                                    if ui.small_button("Delete").clicked() {
-                                        data.input_settings.edit_tool = EditTool::Remove;
-                                    }
-                                popup_layer_id = ui.layer_id();
-                                // iter over them stages and display them
-                                for i in &data.stage {
-                                    if i.enabled {
-                                        ui.heading(format!(
-                                            "{} Stage {}",
-                                            egui_phosphor::LOCK_OPEN,
-                                            i.num
-                                        ));
-                                        ui.group(|ui| {
-                                            for j in &i.buildings {
-                                                let building = Building::new(j);
-                                                if ui
-                                                    .small_button(format!("{} {}",j.symbol(),j.name()))
-                                                    .clicked(){
-                                                    data.input_settings.edit_tool =
-                                                        EditTool::Build(Building::new(j));
-                                                }
-                                                egui::Grid::new(j.name() + &i.title).show(
-                                                    ui,
-                                                    |ui| {
-                                                        egui::CollapsingHeader::new(
-                                                            "Cost ".to_owned()
-                                                                + &building
-                                                                    .cost
-                                                                    .iter()
-                                                                    .map(|x| {format!("{} {},",x.0.symbol(),x.1)})
-                                                                    .collect::<String>())
-                                                        .id_source(j.name() + "cost" + &i.title)
-                                                        .show(ui, |ui| {
-                                                            for k in building.cost.iter() {
-                                                                ui.label(format!(
-                                                                    "{} {}",
-                                                                    k.0.name(),
-                                                                    k.1
-                                                                ));
-                                                            }
-                                                        });
-                                                        ui.end_row();
-                                                        if j.output().len() > 0 {
-                                                            egui::CollapsingHeader::new(
-                                                                "Output ".to_owned()
-                                                                    + &j.output()
-                                                                        .iter()
-                                                                        .map(|x| {format!("{} {},",x.0.symbol(),x.1)})
-                                                                        .collect::<String>(),
-                                                            )
-                                                            .id_source(
-                                                                j.name() + "output" + &i.title,
-                                                            )
-                                                            .show(ui, |ui| {
-                                                                for k in j.output().iter() {
-                                                                    ui.label(format!(
-                                                                        "{} {}",
-                                                                        k.0.name(),
-                                                                        k.1
-                                                                    ));
-                                                                }
-                                                            });
-                                                            ui.end_row();
-                                                        }
-                                                        if building.required_adj.len() > 0 {
-                                                            egui::CollapsingHeader::new(
-                                                                "must be next to: ".to_owned()
-                                                                    + &building
-                                                                        .required_adj
-                                                                        .iter()
-                                                                        .map(|x| {
-                                                                            x.symbol().replace(
-                                                                                "  ",
-                                                                                "[empty space]",
-                                                                            )
-                                                                        })
-                                                                        .collect::<String>(),
-                                                            )
-                                                            .id_source(
-                                                                j.name()
-                                                                    + "must be next to: "
-                                                                    + &i.title,
-                                                            )
-                                                            .show(ui, |ui| {
-                                                                for k in building.required_adj {
-                                                                    ui.label(k.name());
-                                                                }
-                                                            });
-                                                            ui.end_row();
-                                                        }
-
-                                                        egui::CollapsingHeader::new(
-                                                            "can be next to: ".to_owned()
-                                                                + &building
-                                                                    .optional_adj
-                                                                    .iter()
-                                                                    .map(|x| {
-                                                                        x.symbol().replace(
-                                                                            "  ",
-                                                                            "[empty space]",
-                                                                        )
-                                                                    })
-                                                                    .collect::<String>(),
-                                                        )
-                                                        .id_source(
-                                                            j.name()
-                                                                + "can be next to: "
-                                                                + &i.title,
-                                                        )
-                                                        .show(ui, |ui| {
-                                                            for k in building.optional_adj {
-                                                                ui.label(k.name());
-                                                            }
-                                                        });
-                                                        ui.end_row();
-                                                        if building.tile_adj.len() > 0 {
-                                                            egui::CollapsingHeader::new(
-                                                                "on the same tile as: ".to_owned()
-                                                                    + &building
-                                                                        .tile_adj
-                                                                        .iter()
-                                                                        .map(|x| {
-                                                                            x.symbol().replace(
-                                                                                "  ",
-                                                                                "[empty space]",
-                                                                            )
-                                                                        })
-                                                                        .collect::<String>(),
-                                                            )
-                                                            .id_source(
-                                                                j.name()
-                                                                    + "on the same tile as: "
-                                                                    + &i.title,
-                                                            )
-                                                            .show(ui, |ui| {
-                                                                for k in building.tile_adj {
-                                                                    ui.label(k.name());
-                                                                }
-                                                            });
-                                                            ui.end_row();
-                                                        }
-                                                    },
-                                                );
-                                                ui.add_sized(
-                                                    [ui.available_width(), 0.0],
-                                                    egui::Label::new(""),
-                                                );
-                                            }
-                                        });
-                                    } else {
-                                        ui.heading(format!(
-                                            "{} Stage {}",
-                                            egui_phosphor::LOCK,
-                                            i.num
-                                        ));
-                                        ui.group(|ui| {
-                                            ui.label("Unlock at");
-                                            for resource in &i.unlock_at {
-                                                egui::Grid::new(&i.title).show(ui, |ui| {
-                                                    ui.label(format!(
-                                                        "{} {} {}",
-                                                        resource.0.symbol(),
-                                                        resource.0.name(),
-                                                        resource.1
-                                                    ));
-                                                });
-                                            }
-                                            if ui.small_button("Unlock Early").clicked() {
-                                                unlock = i.num - 1;
-                                            }
-                                            ui.add_sized(
-                                                [ui.available_width(), 0.0],
-                                                egui::Label::new(""),
-                                            );
-                                        });
-                                    }
-                                }
+ui.vertical(|ui| {
+        ui.checkbox(&mut data.quick_menu, "Quick Menu");
+        if data.quick_menu {
+            ui.small_button("Remove").clicked().then(|| {
+                data.input_settings.edit_tool = EditTool::Remove;
+            });
+            for s in data.stage.iter_mut() {
+                ui.separator();
+                if s.enabled { ui.horizontal(|ui| {
+                        for b in &s.buildings {
+                            let building = Building::new(b);
+                            if ui.small_button(format!("{}", b.symbol())).on_hover_text(format!("{}",building.cost.iter().map(|x| format!("{}{} ",x.0.symbol(), x.1)).collect::<String>())).clicked() {
+                                data.input_settings.edit_tool = EditTool::Build(Building::new(b));
                             }
-                            });
+                        }
+                    });
+                } else {
+                    // show a lock symbol and a button to unlock it if the user hasn't reached the checkpoint to unlock it
+                    ui.small_button(format!("{} unlock early", egui_phosphor::LOCK)).clicked().then(|| {s.enabled = true;});
+                }
+            }
+        }else{
+            if ui.small_button("Delete").clicked() {
+                data.input_settings.edit_tool = EditTool::Remove;
+            }
+        popup_layer_id = ui.layer_id();
+        // iter over them stages and display them
+        for i in &data.stage {
+            if i.enabled {
+                ui.heading(format!(
+                    "{} Stage {}",
+                    egui_phosphor::LOCK_OPEN,
+                    i.num
+                ));
+                ui.group(|ui| {
+                    for j in &i.buildings {
+                        let building = Building::new(j);
+                        if ui
+                            .small_button(format!("{} {}",j.symbol(),j.name()))
+                            .clicked(){
+                            data.input_settings.edit_tool =
+                                EditTool::Build(Building::new(j));
+                        }
+                        egui::Grid::new(j.name()+&i.title+&j.symbol()).show(
+                            ui,
+                            |ui| {
+                                egui::CollapsingHeader::new(
+                                    "Cost ".to_owned()
+                                        + &building
+                                            .cost
+                                            .iter()
+                                            .map(|x| {format!("{} {},",x.0.symbol(),x.1)})
+                                            .collect::<String>())
+                                .id_source(j.name() + "cost" + &i.title)
+                                .show(ui, |ui| {
+                                    for k in building.cost.iter() {
+                                        ui.label(format!(
+                                            "{} {}",
+                                            k.0.name(),
+                                            k.1
+                                        ));
+                                    }
+                                });
+                                ui.end_row();
+                                if j.output().len() > 0 {
+                                    egui::CollapsingHeader::new(
+                                        "Output ".to_owned()
+                                            + &j.output().iter().map(|x| {format!("{} {},",x.0.symbol(),x.1)})
+                                                .collect::<String>(),
+                                    )
+                                    .id_source(
+                                        j.name() + "output" + &i.title,
+                                    )
+                                    .show(ui, |ui| {
+                                        for k in j.output().iter() {
+                                            ui.label(format!(
+                                                "{} {}",
+                                                k.0.name(),
+                                                k.1
+                                            ));
+                                        }
+                                    });
+                                    ui.end_row();
+                                }
+                                if building.required_adj.len() > 0 {
+                                    egui::CollapsingHeader::new(
+                                        "must be next to: ".to_owned()
+                                            + &building
+                                                .required_adj
+                                                .iter()
+                                                .map(|x| {
+                                                    x.symbol().replace(
+                                                        "  ",
+                                                        "[empty space]",
+                                                    )
+                                                })
+                                                .collect::<String>(),
+                                    )
+                                    .id_source(
+                                        j.name()
+                                            + "must be next to: "
+                                            + &i.title,
+                                    )
+                                    .show(ui, |ui| {
+                                        for k in building.required_adj {
+                                            ui.label(k.name());
+                                        }
+                                    });
+                                    ui.end_row();
+                                }
+
+                                egui::CollapsingHeader::new(
+                                    "can be next to: ".to_owned()
+                                        + &building
+                                            .optional_adj
+                                            .iter()
+                                            .map(|x| {
+                                                x.symbol().replace(
+                                                    "  ",
+                                                    "[empty space]",
+                                                )
+                                            })
+                                            .collect::<String>(),
+                                )
+                                .id_source(
+                                    j.name()
+                                        + "can be next to: "
+                                        + &i.title,
+                                )
+                                .show(ui, |ui| {
+                                    for k in building.optional_adj {
+                                        ui.label(k.name());
+                                    }
+                                });
+                                ui.end_row();
+                                if building.tile_adj.len() > 0 {
+                                    egui::CollapsingHeader::new(
+                                        "on the same tile as: ".to_owned()
+                                            + &building
+                                                .tile_adj
+                                                .iter()
+                                                .map(|x| {
+                                                    x.symbol().replace(
+                                                        "  ",
+                                                        "[empty space]",
+                                                    )
+                                                })
+                                                .collect::<String>(),
+                                    )
+                                    .id_source(
+                                        j.name()
+                                            + "on the same tile as: "
+                                            + &i.title,
+                                    )
+                                    .show(ui, |ui| {
+                                        for k in building.tile_adj {
+                                            ui.label(k.name());
+                                        }
+                                    });
+                                    ui.end_row();
+                                }
+                            },
+                        );
+                        ui.add_sized(
+                            [ui.available_width(), 0.0],
+                            egui::Label::new(""),
+                        );
+                    }
+                });
+            } else {
+                ui.heading(format!(
+                    "{} Stage {}",
+                    egui_phosphor::LOCK,
+                    i.num
+                ));
+                ui.group(|ui| {
+                    ui.label("Unlock at");
+                    for resource in &i.unlock_at {
+                        egui::Grid::new(&i.title).show(ui, |ui| {
+                            ui.label(format!(
+                                "{} {} {}",
+                                resource.0.symbol(),
+                                resource.0.name(),
+                                resource.1
+                            ));
+                        });
+                    }
+                    if ui.small_button("Unlock Early").clicked() {
+                        unlock = i.num - 1;
+                    }
+                    ui.add_sized(
+                        [ui.available_width(), 0.0],
+                        egui::Label::new(""),
+                    );
+                });
+            }
+        }
+    }
+    });
                     }) {
 
                     Some(a) => {
@@ -918,7 +923,7 @@ async fn main() {
                     data = Data::new("".to_owned());
                 }
                 if ui.add(egui::Button::new("Tutorial").fill(egui::Color32::from_rgb(255,127,80))).clicked() {
-
+                    data.guide = !data.guide;
                 };
                 ui.horizontal(|ui|{
                     if ui.small_button(egui_phosphor::MAGNIFYING_GLASS_PLUS).clicked() {
@@ -932,6 +937,9 @@ async fn main() {
                 
             });
             });
+
+            // guide button
+            guide::guide_popup(&mut data, egui_ctx);
             data.toasts.show(egui_ctx);
 
             
@@ -944,7 +952,6 @@ async fn main() {
         {
             draw_text("debug build", 10.0, 10.0, 15.0, BLACK);
             draw_text(&format!("fps: {}", get_fps()), 30.0, 30.0, 20.0, RED);
-            
         }
         
 

@@ -58,26 +58,26 @@ impl Stage {
                     PoliceStation,
                     Hospital,
                     FoodTruck,
-                    Cpu,
+                    // Cpu,
                 ],
-                6 => vec![
-                    Lightning,
-                    Siren,
-                    AirTrafficControl,
-                    Runway,
-                    StairsIntoTheVoid,
-                    Garage,
-                    LightHouse,
-                    Lightbulb,
-                    Mosque,
-                    NuclearPowerPlant,
-                    Rocket,
-                    RobotFactory,
-                    Cookie,
-                    Database,
-                    PalmTree,
-                    Turret,
-                ],
+                // 6 => vec![
+                //     Lightning,
+                //     Siren,
+                //     AirTrafficControl,
+                //     Runway,
+                //     StairsIntoTheVoid,
+                //     Garage,
+                //     LightHouse,
+                //     Lightbulb,
+                //     Mosque,
+                //     NuclearPowerPlant,
+                //     Rocket,
+                //     RobotFactory,
+                //     Cookie,
+                //     Database,
+                //     PalmTree,
+                //     Turret,
+                // ],
                 _ => vec![],
             },
             // descriptions need updating
@@ -457,7 +457,7 @@ impl Building {
         // these buildings can all be next to each other. I use this to make this process easer and less repetitive. 
         let city_tiles = [Bank, FireStation, PoliceStation, Hospital, Apartment, FoodTruck, Cpu];
 
-        let mut optional_adj = Vec::new();
+        let mut optional_adj = vec![Ground];
 
         if ![].contains(&building_type) {optional_adj.push(*building_type)} // cannot be next to self
 
