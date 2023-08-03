@@ -104,9 +104,9 @@ impl Stage {
                 1 => vec![],
                 2 => vec![(Resource::Seed, 50)],
                 3 => vec![(Resource::Wood, 100)],
-                4 => vec![(Resource::Storage, 200)],
-                5 => vec![(Resource::Concrete, 50)],
-                _ => Resource::iter().map(|x| (x, 999999)).collect::<Vec<(Resource, i32)>>(),
+                4 => vec![(Resource::Storage, 900)],
+                5 => vec![(Resource::Concrete, 1200)],
+                _ => vec![(Resource::PlaceholderResource, 9999)],
             },
         }
     }
