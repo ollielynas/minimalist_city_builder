@@ -1,5 +1,5 @@
 # Short introduction to the game
-Here is a short introduction 
+Welcome to Mini City! This tutorial should guide you through each of the stages of progression in the game. Using it is optional, however I recomend checking it if you get stuck.
 
 # What am I seeing?
 In the middle of the screen you will see a green square. you can move this square by dragging it with the mouse.
